@@ -3,14 +3,8 @@ name: Python CI
 on:
   push:
     branches: [main]
-    paths:
-      - 'python/**'
-      - '.github/workflows/python.yml'
   pull_request:
     branches: [main]
-    paths:
-      - 'python/**'
-      - '.github/workflows/python.yml'
 
 jobs:
   test:
@@ -41,7 +35,13 @@ jobs:
       - name: Run tests
         run: |
           cd python
-          uv run pytest -v --cov --cov-report=term-missing
+          uv run pytest -v --cov --cov-report=term-missing --cov-report=xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./python/coverage.xml
+          flags: python
 
       - name: Run type checking
         run: |
