@@ -15,6 +15,15 @@ This module defines:
 - `Portfolio`: Complete portfolio state including cash and positions
 
 These types form the foundation of the verified accounting kernel.
+
+## Numeric Conventions
+
+All monetary values use **basis points** (×10,000) for exact decimal arithmetic:
+- `markPrice`: Asset price in basis points (e.g., $50.25 = 502,500)
+- `cash`: Portfolio cash in basis points
+- `accruedInterest`: Interest in basis points
+
+See OptionHedge.Numeric for detailed explanation.
 -/
 
 namespace OptionHedge
@@ -31,14 +40,14 @@ def AssetId := String
 structure Position where
   asset : Asset
   quantity : Int      -- Signed: positive = long, negative = short
-  markPrice : Int     -- In basis points (price × 10,000)
+  markPrice : Int     -- Price in basis points (×10,000)
   deriving Repr
 
 /-- Portfolio state -/
 structure Portfolio where
-  cash : Int                  -- In cents
+  cash : Int                  -- Cash in basis points (×10,000)
   positions : List Position
-  accruedInterest : Int      -- In cents
+  accruedInterest : Int       -- Interest in basis points (×10,000)
   deriving Repr
 
 end OptionHedge

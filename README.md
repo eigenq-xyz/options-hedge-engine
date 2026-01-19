@@ -73,20 +73,21 @@ option-hedge-engine/
 Progress tracked via git tags:
 
 - [x] **v0.1-scaffold**: Build system and project structure
-- [ ] **v0.2-numeric**: Exact decimal types
-- [ ] **v0.3-nav**: Portfolio state and NAV calculation
-- [ ] **v0.4-trades**: Trade application with proofs
-- [ ] **v0.5-certs**: Certificate emission
-- [ ] **v0.6-verifier**: Lean certificate verifier
-- [ ] **v0.7-integration**: End-to-end CI pipeline
-- [ ] **v0.8-pricer**: Black-Scholes implementation
-- [ ] **v0.9-optimizer**: LP hedging optimizer
-- [ ] **v0.10-data**: Market data integration
-- [ ] **v0.11-backtest**: Full backtest execution
-- [ ] **v0.12-cvar**: CVaR optimization
-- [ ] **v0.13-proofs**: Complete formal proofs
-- [ ] **v0.14-docs**: Documentation deployment
-- [ ] **v0.15 (v1.0)**: Production-ready system
+- [ ] **v0.2-nav**: NAV calculation with FFI setup (Lean ↔ Python)
+- [ ] **v0.3-trades**: Trade application with proofs
+- [ ] **v0.4-certs**: Certificate emission
+- [ ] **v0.5-verifier**: Lean certificate verifier
+- [ ] **v0.6-integration**: End-to-end CI pipeline
+- [ ] **v0.7-pricer**: Black-Scholes implementation
+- [ ] **v0.8-optimizer**: LP hedging optimizer
+- [ ] **v0.9-data**: Market data integration (WRDS/FEDS)
+- [ ] **v0.10-backtest**: Full backtest execution
+- [ ] **v0.11-cvar**: CVaR optimization
+- [ ] **v0.12-proofs**: Complete formal proofs
+- [ ] **v0.13-docs**: Documentation deployment
+- [ ] **v0.14 (v1.0)**: Production-ready system
+
+**Note**: Original v0.2-numeric milestone removed after simplification (see commit history).
 
 See full milestone descriptions in the planning documentation.
 

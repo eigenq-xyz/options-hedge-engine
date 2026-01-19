@@ -272,26 +272,25 @@ theorem dataCertificateValid (cert : DataCertificate)
 
 ## Milestone Breakdown
 
-### v0.2-numeric (Lean only)
-- Implement `Price` type in Lean
-- Prove arithmetic properties
-- **Python**: Cython stub for `Price` conversion
-
-### v0.3-nav (Lean + FFI)
+### v0.2-nav (Lean + FFI)
+- Setup Lake for Lean → C shared library compilation
 - Implement `calcNAV` in Lean with `@[export]`
+- Create Cython FFI bindings
+- Add FFI round-trip tests
 - Prove NAV identity theorem
-- **Python**: Cython binding to call `lean_calc_nav`
 
-### v0.4-trades (Lean + FFI)
+**Note**: Original v0.2-numeric milestone removed - numeric types simplified to raw Int with basis points convention.
+
+### v0.3-trades (Lean + FFI)
 - Implement `applyTrade` in Lean with `@[export]`
 - Prove conservation theorems
 - **Python**: Cython binding to call `lean_apply_trade`
 
-### v0.5-certs (Python only)
+### v0.4-certs (Python only)
 - **Python**: Certificate schema (Pydantic)
 - **Python**: Certificate emission after ETL
 
-### v0.6-verifier (Lean only)
+### v0.5-verifier (Lean only)
 - **Lean**: Parse JSON certificates (data-agnostic)
 - **Python**: Data sources, orchestration, visualization (flexible)
 - **No duplication**: Zero overlap in responsibilities

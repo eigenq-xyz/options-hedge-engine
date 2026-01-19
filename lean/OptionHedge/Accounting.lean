@@ -3,10 +3,12 @@
 
   Core portfolio accounting: NAV calculation, trade application, cash accrual.
   These functions are intentionally simple in v0.1 and will be proven correct in v0.3-v0.4.
+
+  Numeric Convention: All Int values representing money use basis points
+  (×10,000 for 4 decimal places). Example: $123.4567 = 1,234,567 basis points.
 -/
 
 import OptionHedge.Basic
-import OptionHedge.Numeric
 
 namespace OptionHedge
 
