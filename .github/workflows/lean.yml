@@ -3,14 +3,8 @@ name: Lean CI
 on:
   push:
     branches: [main]
-    paths:
-      - 'lean/**'
-      - '.github/workflows/lean.yml'
   pull_request:
     branches: [main]
-    paths:
-      - 'lean/**'
-      - '.github/workflows/lean.yml'
 
 jobs:
   build:
