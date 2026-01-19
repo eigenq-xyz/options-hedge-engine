@@ -48,7 +48,6 @@ jobs:
         with:
           files: ./python/coverage.xml
           flags: python
-          token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Run type checking
         run: |
