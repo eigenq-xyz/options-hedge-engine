@@ -35,7 +35,7 @@ docs = [
 hedge-engine = "hedge_engine.cli:main"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "cython>=3.0.0"]
 build-backend = "hatchling.build"
 
 [tool.ruff]
