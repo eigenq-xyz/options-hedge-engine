@@ -1,17 +1,22 @@
-# Option Hedge Engine
+# Options Hedge Engine
 
-[![Lean Build](https://img.shields.io/badge/lean-v4.15.0-blue)](https://leanprover.github.io/)
-[![Python](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/)
-[![License](https://img.shields.io/badge/license-Apache%202.0-green)](LICENSE)
-[![Status](https://img.shields.io/badge/status-WIP%20v0.1-yellow)](DECISIONS.md)
+[![Lean CI](https://github.com/akhilkarra/options-hedge-engine/actions/workflows/lean.yml/badge.svg)](https://github.com/akhilkarra/options-hedge-engine/actions/workflows/lean.yml)
+[![Python CI](https://github.com/akhilkarra/options-hedge-engine/actions/workflows/python.yml/badge.svg)](https://github.com/akhilkarra/options-hedge-engine/actions/workflows/python.yml)
+[![codecov](https://codecov.io/gh/akhilkarra/options-hedge-engine/branch/main/graph/badge.svg)](https://codecov.io/gh/akhilkarra/options-hedge-engine)
+[![pre-commit.ci status](https://results.pre-commit.ci/badge/github/akhilkarra/options-hedge-engine/main.svg)](https://results.pre-commit.ci/latest/github/akhilkarra/options-hedge-engine/main)
 
-Formally verified options portfolio hedging and backtesting engine combining Lean 4 theorem proving with Python numerical computing.
+Formally verified options portfolio backtesting and hedging engine combining Lean 4 theorem proving with Python numerical computing.
+
+> ⚠️ **EDUCATIONAL USE ONLY**: This software is for educational and research purposes only. It is NOT intended for live trading or production use. No warranty is provided. See [DISCLAIMER.md](DISCLAIMER.md) for details.
 
 ## Overview
 
-This project implements a hedging engine where:
+**Current Focus:** Historical backtesting system with WRDS OptionMetrics data
+**Future Roadmap:** LP-based portfolio optimization for hedging strategies
+
+This project implements a formally verified backtesting engine where:
 - **Lean 4** implements ALL accounting logic (compiled to C) + proves formal invariants
-- **Python** handles ETL (WRDS data) and calls Lean via Cython FFI
+- **Python** handles ETL (data loading) and calls Lean via Cython FFI
 - **Certificates** for ETL verification: Python emits JSON describing data, Lean validates
 
 ### Key Features
