@@ -13,15 +13,18 @@ import OptionHedge.Basic
 namespace OptionHedge
 
 /-- Calculate the market value of a single position -/
+@[export position_value]
 def Position.value (pos : Position) : Int :=
   pos.quantity * pos.markPrice
 
 /-- Calculate total value of all positions -/
+@[export sum_position_values]
 def sumPositionValues (positions : List Position) : Int :=
   positions.foldl (fun acc pos => acc + pos.value) 0
 
 /-- Calculate Net Asset Value (NAV) of portfolio
     NAV = cash + Σ(position values) -/
+@[export calc_nav]
 def calcNAV (p : Portfolio) : Int :=
   p.cash + sumPositionValues p.positions
 

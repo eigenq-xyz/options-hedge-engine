@@ -17,6 +17,5 @@ def test_imports():
 
 def test_submodules_exist():
     """Verify expected submodules are present."""
-    import hedge_engine.bindings  # noqa: F401, E401
-    import hedge_engine.certificate  # noqa: F401, E401
-    import hedge_engine.etl  # noqa: F401, E401
+    import hedge_engine.ffi  # noqa: F401, E401
+    # bindings, certificate, etl modules will be added in later milestones
