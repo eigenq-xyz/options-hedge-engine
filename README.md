@@ -11,8 +11,8 @@ Formally verified options portfolio backtesting and hedging engine combining Lea
 
 ## Overview
 
-**Current Focus:** Historical backtesting system with WRDS OptionMetrics data
-**Future Roadmap:** LP-based portfolio optimization for hedging strategies
+- **Current Focus:** Historical backtesting system with WRDS OptionMetrics data
+- **Future Roadmap:** LP-based portfolio optimization for hedging strategies
 
 This project implements a formally verified backtesting engine where:
 - **Lean 4** implements ALL accounting logic (compiled to C) + proves formal invariants
