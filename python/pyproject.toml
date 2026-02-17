@@ -98,3 +98,9 @@ exclude_lines = [
     "if __name__ == .__main__.:",
     "if TYPE_CHECKING:",
 ]
+
+[dependency-groups]
+dev = [
+    "cython>=3.2.4",
+    "setuptools>=80.9.0",
+]

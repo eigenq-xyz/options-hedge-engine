@@ -1,4 +1,4 @@
-.PHONY: help setup build test lint typecheck format clean
+.PHONY: help setup build build-ffi test lint typecheck format clean
 
 help:
 	@echo "Python Makefile"
@@ -6,6 +6,7 @@ help:
 	@echo "Targets:"
 	@echo "  setup      - Install dependencies with uv"
 	@echo "  build      - Build Python package"
+	@echo "  build-ffi  - Compile Lean Cython extension (requires lake build first)"
 	@echo "  test       - Run tests with coverage"
 	@echo "  lint       - Check code style with ruff"
 	@echo "  typecheck  - Type check with mypy"
@@ -21,6 +22,12 @@ setup:
 
 build:
 	uv build
+
+build-ffi:	## Compile the Lean↔Python Cython extension in-place
+	@echo "==> Ensuring Lake C IR files are up to date..."
+	@cd ../lean && lake build
+	@echo "==> Building Cython extension..."
+	uv run python setup_ffi.py build_ext --inplace
 
 test:
 	uv run pytest -v --cov=hedge_engine --cov-report=term-missing

@@ -15,11 +15,14 @@ setup:		## Install all dependencies (Lean + Python)
 	@echo ""
 	@echo "✓ Setup complete! Try 'make test' next."
 
-build:		## Build Lean proofs + Python package
+build:		## Build Lean proofs + Python package + Cython FFI extension
 	@echo "==> Building Lean..."
 	@cd lean && $(MAKE) build
 	@echo ""
-	@echo "==> Building Python..."
+	@echo "==> Building Cython FFI extension..."
+	@cd python && $(MAKE) build-ffi
+	@echo ""
+	@echo "==> Building Python package..."
 	@cd python && $(MAKE) build
 
 test:		## Run all tests (Lean + Python)

@@ -1,5 +1,7 @@
 # Python
 __pycache__/
+# Cython-generated C (build artifact, not hand-written)
+python/src/hedge_engine/ffi/lean_ffi.c
 *.py[cod]
 *$py.class
 *.so
