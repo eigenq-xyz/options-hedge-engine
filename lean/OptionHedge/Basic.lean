@@ -28,12 +28,31 @@ namespace OptionHedge
 /-- Type alias for asset identifiers -/
 abbrev AssetId := String
 
-/-- Position in a single asset -/
+/-- Position in a single asset.
+
+The `markPrice_pos` field is a proof that `markPrice > 0`,
+making it impossible to construct a Position with a non-positive price. -/
 structure Position where
   asset : AssetId
   quantity : Int      -- Signed: positive = long, negative = short
   markPrice : Int     -- Price in basis points (×10,000)
-  deriving Repr, BEq, Inhabited, DecidableEq
+  markPrice_pos : markPrice > 0
+  deriving DecidableEq
+
+instance : BEq Position := ⟨fun a b => decide (a = b)⟩
+
+instance : Repr Position where
+  reprPrec p _ :=
+    s!"Position(asset := {repr p.asset}, quantity := {repr p.quantity}, markPrice := {repr p.markPrice})"
+
+instance : Inhabited Position where
+  default := ⟨"", 0, 1, by omega⟩
+
+/-- Smart constructor: builds a Position with price proved positive.
+    The proof is auto-discharged by `omega` for concrete positive literals. -/
+def Position.mk' (asset : AssetId) (quantity : Int) (markPrice : Int)
+    (h : markPrice > 0 := by omega) : Position :=
+  ⟨asset, quantity, markPrice, h⟩
 
 /-- Calculate the market value of a single position -/
 @[inline]

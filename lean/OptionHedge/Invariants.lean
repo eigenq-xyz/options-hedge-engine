@@ -40,10 +40,9 @@ theorem position_value_def (pos : Position) :
 /-! ## Domain Constraints -/
 
 /-- Mark prices must be positive.
-NOTE: Axiom for now; will be enforced at the certificate validation
-boundary (v0.6) rather than in the type system, because positions
-arrive from external data and the kernel is data-source agnostic. -/
-axiom pricesPositive (pos : Position) : pos.markPrice > 0
+Proved directly from the `markPrice_pos` field on Position — no axiom needed. -/
+theorem pricesPositive (pos : Position) : pos.markPrice > 0 :=
+  pos.markPrice_pos
 
 /-
 ## Future Theorems (v0.3+)
