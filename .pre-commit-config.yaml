@@ -9,7 +9,7 @@ ci:
 repos:
   # General file checks
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v6.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -21,7 +21,7 @@ repos:
 
   # Python: Ruff (linting + formatting)
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.8.4
+    rev: v0.15.0
     hooks:
       - id: ruff
         args: [--fix]
@@ -29,7 +29,7 @@ repos:
 
   # Python: Type checking with mypy
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.13.0
+    rev: v1.19.1
     hooks:
       - id: mypy
         args: [--ignore-missing-imports, --no-strict-optional]
@@ -38,7 +38,7 @@ repos:
 
   # Markdown linting
   - repo: https://github.com/igorshubovych/markdownlint-cli
-    rev: v0.43.0
+    rev: v0.47.0
     hooks:
       - id: markdownlint
         args: [--fix, --disable, MD013, MD033, MD041]  # Disable line length, HTML, first line heading
