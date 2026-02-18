@@ -74,6 +74,7 @@ cdef extern from *:
     extern lean_object* hedge_portfolio_nav(lean_object*);
     extern lean_object* hedge_mk_portfolio(lean_object*, lean_object*);
     extern lean_object* hedge_get_position(lean_object*, lean_object*);
+    extern lean_object* hedge_apply_trade(lean_object*, lean_object*);
     """
     void lean_initialize_runtime_module()
     lean_object* initialize_option_x2dhedge_x2dengine_OptionHedge_Accounting(
@@ -83,6 +84,7 @@ cdef extern from *:
     lean_object* hedge_portfolio_nav(lean_object* portfolio)
     lean_object* hedge_mk_portfolio(lean_object* cash, lean_object* positions)
     lean_object* hedge_get_position(lean_object* portfolio, lean_object* asset_id)
+    lean_object* hedge_apply_trade(lean_object* portfolio, lean_object* trade)
 
 
 # ---------------------------------------------------------------------------
@@ -175,6 +177,63 @@ cdef lean_object* _py_to_portfolio(int64_t cash, list positions):
     return hedge_mk_portfolio(cash_lean, pos_list)
 
 
+cdef lean_object* _py_trade_to_lean(str asset_id, int64_t delta_qty,
+                                     int64_t exec_price, int64_t fee):
+    """Python trade fields → Lean Trade (tag=0, 4 obj-fields; proof fields erased).
+
+    Trade fields at the C level (executionPrice_pos and fee_nonneg are erased):
+      0: assetId        : String
+      1: deltaQuantity  : Int
+      2: executionPrice : Int
+      3: fee            : Int
+    """
+    cdef lean_object* trade = lean_alloc_ctor(0, 4, 0)
+    lean_ctor_set(trade, 0, _py_str_to_lean(asset_id))
+    lean_ctor_set(trade, 1, _py_int_to_lean(delta_qty))
+    lean_ctor_set(trade, 2, _py_int_to_lean(exec_price))
+    lean_ctor_set(trade, 3, _py_int_to_lean(fee))
+    return trade
+
+
+cdef list _lean_list_to_py(lean_object* lst):
+    """Lean List Position → Python list[dict] (borrowed ref, does not consume lst).
+
+    Traverses the cons-list and returns each position as a dict.
+    lean_is_scalar distinguishes nil (scalar lean_box(0)) from cons (heap object).
+    """
+    cdef lean_object* head
+    result = []
+    while not lean_is_scalar(lst):   # lean_is_scalar(lst) == True means nil
+        head = lean_ctor_get(lst, 0)
+        result.append(_lean_pos_to_py(head))
+        lst = lean_ctor_get(lst, 1)  # borrowed tail
+    return result
+
+
+cdef dict _lean_portfolio_to_py(lean_object* portfolio):
+    """Lean Portfolio → Python dict. Consumes portfolio (owned ref).
+
+    Portfolio fields at the C level (nav_valid proof is erased):
+      0: cash      : Int
+      1: positions : List Position
+      2: nav       : Int
+    """
+    cdef lean_object* cash_obj = lean_ctor_get(portfolio, 0)
+    cdef lean_object* pos_list = lean_ctor_get(portfolio, 1)
+    cdef lean_object* nav_obj  = lean_ctor_get(portfolio, 2)
+    lean_inc(cash_obj)
+    lean_inc(pos_list)
+    lean_inc(nav_obj)
+    lean_dec(portfolio)   # fields survive because we lean_inc'd them above
+    cdef int64_t cash_val = _lean_int_to_py(cash_obj)
+    cdef int64_t nav_val  = _lean_int_to_py(nav_obj)
+    positions = _lean_list_to_py(pos_list)
+    lean_dec(cash_obj)
+    lean_dec(nav_obj)
+    lean_dec(pos_list)
+    return {"cash": cash_val, "positions": positions, "nav": nav_val}
+
+
 # ---------------------------------------------------------------------------
 # Public API — matches existing stub signatures
 # ---------------------------------------------------------------------------
@@ -224,6 +283,20 @@ def calc_nav(int cash, list positions) -> int:
     cdef int64_t val = _lean_int_to_py(result)
     lean_dec(result)
     return val
+
+
+def apply_trade(int cash, list positions, str asset_id,
+                int delta_quantity, int execution_price, int fee) -> dict:
+    """hedge_apply_trade: apply a trade, returning updated portfolio dict.
+
+    Returns {"cash": int, "positions": list[dict], "nav": int}.
+    Both portfolio and trade are consumed by the FFI call.
+    """
+    cdef lean_object* portfolio = _py_to_portfolio(cash, positions)
+    cdef lean_object* trade     = _py_trade_to_lean(asset_id, delta_quantity,
+                                                     execution_price, fee)
+    cdef lean_object* result    = hedge_apply_trade(portfolio, trade)  # consumes both
+    return _lean_portfolio_to_py(result)   # consumes result
 
 
 def get_position(list positions, str asset_id) -> dict | None:

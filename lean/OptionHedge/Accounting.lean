@@ -37,4 +37,9 @@ def mkPortfolioFFI (cash : Int) (positions : List Position) : Portfolio :=
 def getPositionFFI (p : Portfolio) (id : AssetId) : Option Position :=
   p.getPosition id
 
+/-- FFI: Apply a trade to a portfolio -/
+@[export hedge_apply_trade]
+def applyTradeFFI (p : Portfolio) (t : Trade) : Portfolio :=
+  applyTrade p t
+
 end OptionHedge
