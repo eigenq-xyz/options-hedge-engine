@@ -59,8 +59,8 @@ def test_sum_position_values_empty():
 def test_sum_position_values_multiple():
     """SPY + AAPL position values."""
     positions = [
-        {"quantity": 100, "mark_price": 500000},
-        {"quantity": 50, "mark_price": 1800000},
+        {"asset_id": "SPY", "quantity": 100, "mark_price": 500000},
+        {"asset_id": "AAPL", "quantity": 50, "mark_price": 1800000},
     ]
     assert sum_position_values(positions) == 140_000_000
 

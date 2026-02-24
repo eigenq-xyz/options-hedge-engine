@@ -4,6 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Akhil Karra
 -/
 
+import Std.Data.HashMap
+
 /-!
 # Basic Types
 
@@ -61,9 +63,9 @@ def Position.mk' (asset : AssetId) (quantity : Int) (markPrice : Int)
 def Position.value (pos : Position) : Int :=
   pos.quantity * pos.markPrice
 
-/-- Calculate total value of a list of positions -/
-def sumPositionValues (positions : List Position) : Int :=
-  positions.foldl (fun acc pos => acc + pos.value) 0
+/-- Calculate total value of positions in a HashMap -/
+def sumPositionValues (positions : Std.HashMap AssetId Position) : Int :=
+  positions.fold (fun acc _id pos => acc + pos.value) 0
 
 /-- Portfolio state with type-level NAV invariant.
 
@@ -71,7 +73,7 @@ The `nav_valid` field is a proof that `nav = cash + sumPositionValues positions`
 making it impossible to construct a Portfolio with an incorrect NAV. -/
 structure Portfolio where
   cash : Int
-  positions : List Position
+  positions : Std.HashMap AssetId Position
   nav : Int
   nav_valid : nav = cash + sumPositionValues positions
 
@@ -80,7 +82,7 @@ instance : Repr Portfolio where
     s!"Portfolio(cash := {repr p.cash}, positions := {repr p.positions}, nav := {repr p.nav})"
 
 /-- Smart constructor: builds a Portfolio with NAV computed and proved correct. -/
-def Portfolio.mk' (cash : Int) (positions : List Position) : Portfolio :=
+def Portfolio.mk' (cash : Int) (positions : Std.HashMap AssetId Position) : Portfolio :=
   { cash := cash
     positions := positions
     nav := cash + sumPositionValues positions
@@ -88,21 +90,17 @@ def Portfolio.mk' (cash : Int) (positions : List Position) : Portfolio :=
 
 /-- Convenience: empty portfolio with given cash -/
 def Portfolio.empty (cash : Int) : Portfolio :=
-  Portfolio.mk' cash []
+  Portfolio.mk' cash {}
 
 /-- Look up a position by asset ID -/
 def Portfolio.getPosition (p : Portfolio) (id : AssetId) : Option Position :=
-  p.positions.find? (fun pos => pos.asset == id)
+  p.positions[id]?
 
 /-- Get the held quantity for an asset (0 if not in portfolio) -/
 def Portfolio.getQuantity (p : Portfolio) (id : AssetId) : Int :=
   match p.getPosition id with
   | some pos => pos.quantity
   | none     => 0
-
-/-- Remove all positions matching the given asset ID -/
-def removePosition (positions : List Position) (id : AssetId) : List Position :=
-  positions.filter (fun pos => pos.asset != id)
 
 /-- A single trade instruction.
 
@@ -144,10 +142,22 @@ def Trade.mk' (assetId : AssetId) (deltaQuantity : Int) (executionPrice : Int) (
 def applyTrade (p : Portfolio) (t : Trade) : Portfolio :=
   let newQty   := p.getQuantity t.assetId + t.deltaQuantity
   let newCash  := p.cash - (t.deltaQuantity * t.executionPrice + t.fee)
-  let stripped := removePosition p.positions t.assetId
+  let erased   := p.positions.erase t.assetId
   let newPositions :=
-    if newQty = 0 then stripped
-    else stripped ++ [⟨t.assetId, newQty, t.executionPrice, t.executionPrice_pos⟩]
+    if newQty = 0 then erased
+    else erased.insert t.assetId ⟨t.assetId, newQty, t.executionPrice, t.executionPrice_pos⟩
   Portfolio.mk' newCash newPositions
+
+/-- Convert a List of Positions to a HashMap keyed by asset ID -/
+def positionsOfList (ps : List Position) : Std.HashMap AssetId Position :=
+  ps.foldl (fun m p => m.insert p.asset p) {}
+
+/-- Build a Portfolio from cash and a List of Positions (FFI layer) -/
+def Portfolio.mkFromList (cash : Int) (ps : List Position) : Portfolio :=
+  Portfolio.mk' cash (positionsOfList ps)
+
+/-- Convert Portfolio positions HashMap to a List for FFI/Python -/
+def Portfolio.positionsToList (p : Portfolio) : List Position :=
+  p.positions.toList.map Prod.snd
 
 end OptionHedge

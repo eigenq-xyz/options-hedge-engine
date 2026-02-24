@@ -75,6 +75,7 @@ cdef extern from *:
     extern lean_object* hedge_mk_portfolio(lean_object*, lean_object*);
     extern lean_object* hedge_get_position(lean_object*, lean_object*);
     extern lean_object* hedge_apply_trade(lean_object*, lean_object*);
+    extern lean_object* hedge_portfolio_positions_to_list(lean_object*);
     """
     void lean_initialize_runtime_module()
     lean_object* initialize_option_x2dhedge_x2dengine_OptionHedge_Accounting(
@@ -85,6 +86,7 @@ cdef extern from *:
     lean_object* hedge_mk_portfolio(lean_object* cash, lean_object* positions)
     lean_object* hedge_get_position(lean_object* portfolio, lean_object* asset_id)
     lean_object* hedge_apply_trade(lean_object* portfolio, lean_object* trade)
+    lean_object* hedge_portfolio_positions_to_list(lean_object* portfolio)
 
 
 # ---------------------------------------------------------------------------
@@ -215,18 +217,20 @@ cdef dict _lean_portfolio_to_py(lean_object* portfolio):
 
     Portfolio fields at the C level (nav_valid proof is erased):
       0: cash      : Int
-      1: positions : List Position
+      1: positions : HashMap (opaque — must use FFI to convert)
       2: nav       : Int
+
+    Use hedge_portfolio_positions_to_list to get positions as a List.
     """
     cdef lean_object* cash_obj = lean_ctor_get(portfolio, 0)
-    cdef lean_object* pos_list = lean_ctor_get(portfolio, 1)
     cdef lean_object* nav_obj  = lean_ctor_get(portfolio, 2)
     lean_inc(cash_obj)
-    lean_inc(pos_list)
     lean_inc(nav_obj)
-    lean_dec(portfolio)   # fields survive because we lean_inc'd them above
+    lean_inc(portfolio)  # keep for FFI call
     cdef int64_t cash_val = _lean_int_to_py(cash_obj)
     cdef int64_t nav_val  = _lean_int_to_py(nav_obj)
+    # Convert positions HashMap to List via FFI
+    cdef lean_object* pos_list = hedge_portfolio_positions_to_list(portfolio)
     positions = _lean_list_to_py(pos_list)
     lean_dec(cash_obj)
     lean_dec(nav_obj)

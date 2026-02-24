@@ -24,14 +24,19 @@ theorem navIdentity (p : Portfolio) :
   p.nav_valid
 
 /-- The smart constructor computes NAV correctly -/
-theorem mk'_nav (cash : Int) (positions : List Position) :
+theorem mk'_nav (cash : Int) (positions : Std.HashMap AssetId Position) :
     (Portfolio.mk' cash positions).nav = cash + sumPositionValues positions :=
   rfl
 
 /-- An empty portfolio's NAV equals its cash -/
 theorem empty_nav (cash : Int) :
     (Portfolio.empty cash).nav = cash := by
-  simp [Portfolio.empty, Portfolio.mk', sumPositionValues, List.foldl]
+  -- nav = cash + sumPositionValues {} by rfl; fold over empty list = 0
+  have h1 : (Portfolio.empty cash).nav =
+      cash + sumPositionValues (∅ : Std.HashMap AssetId Position) := rfl
+  have h2 : sumPositionValues (∅ : Std.HashMap AssetId Position) = 0 := by
+    simp [sumPositionValues, Std.HashMap.fold_eq_foldl_toList]
+  linarith
 
 /-- Position value is quantity times mark price -/
 theorem position_value_def (pos : Position) :
@@ -54,83 +59,81 @@ theorem feeNonNegative (t : Trade) : t.fee ≥ 0 := t.fee_nonneg
 theorem cashUpdateCorrect (p : Portfolio) (t : Trade) :
     (applyTrade p t).cash = p.cash - (t.deltaQuantity * t.executionPrice + t.fee) := rfl
 
-/-! ### Helper lemmas for list arithmetic -/
+/-! ### Helper lemmas for sumPositionValues and HashMap operations -/
 
-/-- `foldl` with an additive offset can be factored out. -/
-private theorem foldl_value_offset (c : Int) (ps : List Position) :
-    List.foldl (fun acc p => acc + p.value) c ps =
-    c + List.foldl (fun acc p => acc + p.value) 0 ps := by
-  induction ps generalizing c with
+/-- Shifting the foldl init by a constant shifts the result by the same constant. -/
+private theorem foldl_val_shift (l : List (AssetId × Position)) (init : Int) :
+    l.foldl (fun acc p => acc + p.2.value) init =
+    l.foldl (fun acc p => acc + p.2.value) 0 + init := by
+  induction l generalizing init with
   | nil => simp
   | cons h t ih =>
-    simp only [List.foldl]
-    have h1 := ih (c + h.value)
-    have h2 := ih (0 + h.value)
-    omega
+    simp only [List.foldl_cons, zero_add]
+    rw [ih (init + h.2.value), ih h.2.value]
+    ring
 
-/-- `sumPositionValues` expands at the head of a list. -/
-private theorem sumPositionValues_cons (pos : Position) (ps : List Position) :
-    sumPositionValues (pos :: ps) = pos.value + sumPositionValues ps := by
-  simp only [sumPositionValues, List.foldl_cons]
-  have := foldl_value_offset (0 + pos.value) ps
-  omega
+/-- sumPositionValues is invariant under HashMap toList permutation. -/
+private theorem sumPositionValues_of_toList_perm
+    {m₁ m₂ : Std.HashMap AssetId Position} (h : m₁.toList.Perm m₂.toList) :
+    sumPositionValues m₁ = sumPositionValues m₂ := by
+  simp only [sumPositionValues, Std.HashMap.fold_eq_foldl_toList]
+  exact h.foldl_eq' (f := fun acc p => acc + p.2.value)
+    (comm := fun _ _ _ _ _ => by ring) 0
 
-/-- `sumPositionValues` is additive over list concatenation. -/
-private theorem sumPositionValues_append (ps qs : List Position) :
-    sumPositionValues (ps ++ qs) = sumPositionValues ps + sumPositionValues qs := by
-  simp only [sumPositionValues, List.foldl_append]
-  exact foldl_value_offset (sumPositionValues ps) qs
+/-- Inserting a key (after erasing it) increases sumPositionValues by that position's value.
+    Uses toList_insert_perm: k ∉ m.erase k so filter (¬k==·) = id on its toList. -/
+private theorem sumPositionValues_insert
+    (m : Std.HashMap AssetId Position) (k : AssetId) (v : Position) :
+    sumPositionValues ((m.erase k).insert k v) = sumPositionValues (m.erase k) + v.value := by
+  simp only [sumPositionValues, Std.HashMap.fold_eq_foldl_toList]
+  -- k is absent from (m.erase k), so the filter in toList_insert_perm is identity
+  have hFilter : (m.erase k).toList.filter (fun p => !(k == p.1)) =
+                 (m.erase k).toList := by
+    apply List.filter_eq_self.mpr
+    intro ⟨k', _⟩ hmem
+    -- If k == k', then k = k', but (m.erase k)[k]? = none — contradiction
+    cases hbeq : (k == k') with
+    | true =>
+      have hEq : k = k' := LawfulBEq.eq_of_beq hbeq
+      subst hEq
+      exact absurd (Std.HashMap.mem_toList_iff_getElem?_eq_some.mp hmem)
+        (by simp)  -- getElem?_erase_self is @[simp]; simp closes the ⊢ ¬ none = some _ goal
+    | false => rfl
+  -- toList_insert_perm gives the perm; simplify away the filter
+  have hPerm : ((m.erase k).insert k v).toList.Perm (⟨k, v⟩ :: (m.erase k).toList) := by
+    have := Std.HashMap.toList_insert_perm (m := m.erase k) (k := k) (v := v)
+    -- ¬k == ·.1 elaborates as decide(¬(b=true)); normalize to !(k==·.1)
+    simp only [Bool.not_eq_true, Bool.decide_eq_false] at this
+    rwa [hFilter] at this
+  -- Apply foldl_eq' and reduce the cons
+  rw [hPerm.foldl_eq' (comm := fun _ _ _ _ _ => by ring) 0]
+  simp only [List.foldl_cons, zero_add]
+  rw [foldl_val_shift]
 
-/-- `sumPositionValues` of a singleton is the position's value. -/
-private theorem sumPositionValues_singleton (pos : Position) :
-    sumPositionValues [pos] = pos.value := by
-  rw [sumPositionValues_cons]
-  simp [sumPositionValues]
-
-/-- Every element of `removePosition ps id` has a different asset. -/
-private theorem removePosition_ne_id (ps : List Position) (id : AssetId)
-    (q : Position) (hq : q ∈ removePosition ps id) : q.asset ≠ id := by
-  simp only [removePosition, List.mem_filter, bne_iff_ne] at hq
-  exact hq.2
-
-/-- `find?` for the removed id returns `none` on the stripped list. -/
-private theorem find?_removePosition_none (ps : List Position) (id : AssetId) :
-    (removePosition ps id).find? (fun p => p.asset == id) = none := by
-  apply List.find?_eq_none.mpr
-  intro q hq
-  have hne : q.asset ≠ id := removePosition_ne_id ps id q hq
-  simp [beq_iff_eq, hne]
-
-/-- `sumPositionValues` splits cleanly over the filter for an asset id. -/
-private theorem sumPositionValues_filter_split (ps : List Position) (id : AssetId) :
-    sumPositionValues ps =
-    sumPositionValues (removePosition ps id) +
-    sumPositionValues (ps.filter (fun p => p.asset == id)) := by
-  induction ps with
-  | nil => simp [sumPositionValues, removePosition]
-  | cons h t ih =>
-    rw [sumPositionValues_cons]
-    by_cases hid : h.asset = id
-    · -- h matches id: excluded from removePosition, included in filter
-      have hbeq : (h.asset == id) = true  := beq_iff_eq.mpr hid
-      have hbne : (h.asset != id) = false := by simp [hid]
-      have hrm : removePosition (h :: t) id = removePosition t id := by
-        simp [removePosition, hbne]
-      have hfl : (h :: t).filter (fun p => p.asset == id) =
-                 h :: t.filter (fun p => p.asset == id) := by
-        simp [hbeq]
-      rw [hrm, hfl, sumPositionValues_cons]
-      omega
-    · -- h does not match id: included in removePosition, excluded from filter
-      have hbeq : (h.asset == id) = false := by simp [hid]
-      have hbne : (h.asset != id) = true  := by simp [hid]
-      have hrm : removePosition (h :: t) id = h :: removePosition t id := by
-        simp [removePosition, hbne]
-      have hfl : (h :: t).filter (fun p => p.asset == id) =
-                 t.filter (fun p => p.asset == id) := by
-        simp [hbeq]
-      rw [hrm, hfl, sumPositionValues_cons]
-      omega
+/-- Erasing a key reduces sumPositionValues by that position's value.
+    Uses: (m.erase k).insert k v ~m m (by Equiv.of_forall_getElem?_eq),
+    giving equal foldl; combined with sumPositionValues_insert. -/
+private theorem sumPositionValues_erase_of_mem
+    (m : Std.HashMap AssetId Position) (k : AssetId) (v : Position)
+    (h : m[k]? = some v) :
+    sumPositionValues (m.erase k) = sumPositionValues m - v.value := by
+  -- (m.erase k).insert k v agrees with m on every key lookup
+  -- grind applies getElem?_insert and getElem?_erase (@[grind =]), case-splits on k==k',
+  -- and uses h : m[k]? = some v + LawfulBEq to close both branches.
+  have hEquiv : Std.HashMap.Equiv ((m.erase k).insert k v) m := by
+    apply Std.HashMap.Equiv.of_forall_getElem?_eq
+    intro k'
+    cases hk : (k == k') with
+    | true =>
+      have hEq : k = k' := LawfulBEq.eq_of_beq hk
+      subst hEq
+      simp [h]
+    | false =>
+      simp [Std.HashMap.getElem?_insert, Std.HashMap.getElem?_erase, hk]
+  -- Therefore their toList are permutations → equal sumPositionValues
+  have hEqSum : sumPositionValues ((m.erase k).insert k v) = sumPositionValues m :=
+    sumPositionValues_of_toList_perm (Std.HashMap.Equiv.toList_perm hEquiv)
+  linarith [sumPositionValues_insert m k v]
 
 /-! ### Quantity Conservation -/
 
@@ -138,82 +141,69 @@ private theorem sumPositionValues_filter_split (ps : List Position) (id : AssetI
 theorem quantityConservation (p : Portfolio) (t : Trade) :
     (applyTrade p t).getQuantity t.assetId =
     p.getQuantity t.assetId + t.deltaQuantity := by
-  set newQty   := p.getQuantity t.assetId + t.deltaQuantity with hqdef
-  set stripped := removePosition p.positions t.assetId
-  -- The positions field after applyTrade is definitionally an if-then-else
-  have hpos : (applyTrade p t).positions =
-      if newQty = 0 then stripped
-      else stripped ++ [⟨t.assetId, newQty, t.executionPrice, t.executionPrice_pos⟩] := rfl
-  -- fact about stripped's find?
-  have hfind : stripped.find? (fun p => p.asset == t.assetId) = none :=
-    find?_removePosition_none p.positions t.assetId
-  simp only [Portfolio.getQuantity, Portfolio.getPosition, hpos]
-  split_ifs with h
-  · -- newQty = 0: find? returns none → getQuantity = 0
-    simp [hfind, h]
-  · -- newQty ≠ 0: new position is appended, find? returns it
-    rw [List.find?_append, hfind]
-    simp
+  -- applyTrade builds positions via erase then conditional insert
+  have hEq : (applyTrade p t).positions =
+      if p.getQuantity t.assetId + t.deltaQuantity = 0 then
+        p.positions.erase t.assetId
+      else
+        (p.positions.erase t.assetId).insert t.assetId
+          ⟨t.assetId, p.getQuantity t.assetId + t.deltaQuantity,
+           t.executionPrice, t.executionPrice_pos⟩ := rfl
+  -- Case split before simp to avoid unfolding Portfolio.getQuantity inside the if-condition
+  by_cases hQty : p.getQuantity t.assetId + t.deltaQuantity = 0
+  · -- quantity is zero: position erased, getElem? returns none → getQuantity = 0
+    have hPos : (applyTrade p t).positions = p.positions.erase t.assetId := by
+      rw [hEq, if_pos hQty]
+    simp only [Portfolio.getQuantity, Portfolio.getPosition, hPos,
+               Std.HashMap.getElem?_erase_self]
+    -- hQty still uses p.getQuantity; unfold it to match the match-expression in the goal
+    simp only [Portfolio.getQuantity, Portfolio.getPosition] at hQty
+    omega
+  · -- quantity non-zero: position inserted, getElem? returns some new position
+    have hPos : (applyTrade p t).positions =
+        (p.positions.erase t.assetId).insert t.assetId
+          ⟨t.assetId, p.getQuantity t.assetId + t.deltaQuantity,
+           t.executionPrice, t.executionPrice_pos⟩ := by
+      rw [hEq, if_neg hQty]
+    simp only [Portfolio.getQuantity, Portfolio.getPosition, hPos,
+               Std.HashMap.getElem?_insert_self]
 
 /-! ### Self-Financing -/
 
-/-- When a trade executes at the existing mark price, NAV changes only by the fee.
-
-    `hUniq` asserts that the position list has exactly one entry for the traded
-    asset — the invariant maintained by `applyTrade` on properly-built portfolios. -/
+/-- When a trade executes at the existing mark price, NAV changes only by the fee. -/
 theorem selfFinancing (p : Portfolio) (t : Trade) (pos : Position)
     (hPos  : p.getPosition t.assetId = some pos)
-    (hPrice : t.executionPrice = pos.markPrice)
-    (hUniq : p.positions.filter (fun q => q.asset == t.assetId) = [pos]) :
+    (hPrice : t.executionPrice = pos.markPrice) :
     (applyTrade p t).nav = p.nav - t.fee := by
-  -- Step 1: p.getQuantity t.assetId = pos.quantity
-  have hqty : p.getQuantity t.assetId = pos.quantity := by
-    simp only [Portfolio.getQuantity, hPos]
-  -- Step 2: decompose sumPositionValues p.positions
-  have hsum : sumPositionValues p.positions =
-      sumPositionValues (removePosition p.positions t.assetId) + pos.value := by
-    have hsplit := sumPositionValues_filter_split p.positions t.assetId
-    rw [hUniq] at hsplit
-    linarith [sumPositionValues_singleton pos]
-  -- Step 3: cash after trade
-  have hcash : (applyTrade p t).cash = p.cash - (t.deltaQuantity * t.executionPrice + t.fee) := rfl
-  -- Step 4: newQty = pos.quantity + deltaQuantity; newPositions
-  set newQty   := p.getQuantity t.assetId + t.deltaQuantity with hqdef
-  set stripped := removePosition p.positions t.assetId
-  have hq : newQty = pos.quantity + t.deltaQuantity := by rw [hqdef, hqty]
-  have hpositions : (applyTrade p t).positions =
-      if newQty = 0 then stripped
-      else stripped ++ [⟨t.assetId, newQty, t.executionPrice, t.executionPrice_pos⟩] := rfl
-  -- Step 5: compute (applyTrade p t).nav
-  have hnav : (applyTrade p t).nav =
-      (applyTrade p t).cash + sumPositionValues (applyTrade p t).positions :=
-    (applyTrade p t).nav_valid
-  -- Step 6: case split on newQty = 0
-  by_cases h : newQty = 0
-  · -- newQty = 0: pos.quantity + deltaQuantity = 0, so pos.quantity = -deltaQuantity
-    rw [hnav, hcash, p.nav_valid, hsum, hpositions, if_pos h]
-    -- pos.value = pos.quantity * t.executionPrice (via hPrice)
-    have hv : pos.value = pos.quantity * t.executionPrice := by
-      simp [Position.value, hPrice]
-    -- -deltaQuantity * executionPrice = pos.quantity * executionPrice
-    have hq_neg : pos.quantity = -t.deltaQuantity := by omega
-    have heq : pos.quantity * t.executionPrice = -t.deltaQuantity * t.executionPrice := by
-      rw [hq_neg]
-    linarith [hv, heq]
-  · -- newQty ≠ 0: new position appended; sum expands by newQty * executionPrice
-    rw [hnav, hcash, p.nav_valid, hsum, hpositions, if_neg h,
-        sumPositionValues_append, sumPositionValues_singleton]
-    -- singleton value = newQty * executionPrice
-    have hnew : (⟨t.assetId, newQty, t.executionPrice, t.executionPrice_pos⟩ : Position).value =
-        newQty * t.executionPrice := by simp [Position.value]
-    rw [hnew]
-    -- pos.value = pos.quantity * executionPrice (via hPrice)
-    have hv : pos.value = pos.quantity * t.executionPrice := by
-      simp [Position.value, hPrice]
-    -- newQty * executionPrice = pos.quantity * executionPrice + deltaQuantity * executionPrice
-    have hq_exp : newQty * t.executionPrice =
-        pos.quantity * t.executionPrice + t.deltaQuantity * t.executionPrice := by
-      rw [hq]; ring
-    linarith [hv, hq_exp]
+  have hLookup : p.positions[t.assetId]? = some pos := hPos
+  -- Extract quantity from the looked-up position
+  have hGetQty : p.getQuantity t.assetId = pos.quantity := by
+    simp [Portfolio.getQuantity, Portfolio.getPosition, hLookup]
+  -- Rewrite both NAVs using the stored nav_valid proofs
+  rw [navIdentity (applyTrade p t), navIdentity p, cashUpdateCorrect, hPrice]
+  -- It suffices to show sumPositionValues changes by exactly deltaQuantity * markPrice
+  suffices h : sumPositionValues (applyTrade p t).positions =
+               sumPositionValues p.positions + t.deltaQuantity * pos.markPrice by linarith
+  have hPos' : (applyTrade p t).positions =
+      if p.getQuantity t.assetId + t.deltaQuantity = 0 then
+        p.positions.erase t.assetId
+      else
+        (p.positions.erase t.assetId).insert t.assetId
+          ⟨t.assetId, p.getQuantity t.assetId + t.deltaQuantity,
+           t.executionPrice, t.executionPrice_pos⟩ := rfl
+  rw [hPos']
+  by_cases hQty : p.getQuantity t.assetId + t.deltaQuantity = 0
+  · -- Position erased entirely: sum drops by pos.value = pos.quantity * markPrice
+    simp only [if_pos hQty]
+    rw [sumPositionValues_erase_of_mem _ _ _ hLookup]
+    simp only [Position.value]
+    -- deltaQuantity = -pos.quantity since their sum is 0; ring handles the rest
+    have hDelta : t.deltaQuantity = -pos.quantity := by
+      have h := hGetQty ▸ hQty; omega
+    rw [hDelta]; ring
+  · -- Position updated in-place: sum changes by net delta
+    simp only [if_neg hQty]
+    rw [sumPositionValues_insert, sumPositionValues_erase_of_mem _ _ _ hLookup]
+    simp only [Position.value, hGetQty, hPrice]; ring
 
 end OptionHedge

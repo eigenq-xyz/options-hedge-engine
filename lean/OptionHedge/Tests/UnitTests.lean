@@ -18,8 +18,8 @@ namespace OptionHedge.Tests
 /-! ## Empty portfolio -/
 
 example : (Portfolio.empty 1000000).cash = 1000000 := rfl
-example : (Portfolio.empty 1000000).nav = 1000000 := rfl
-example : (Portfolio.empty 1000000).positions = [] := rfl
+example : (Portfolio.empty 1000000).nav = 1000000 := by native_decide
+example : (Portfolio.empty 1000000).positions = {} := rfl
 
 /-! ## Position value -/
 
@@ -31,9 +31,12 @@ example : (Position.mk' "AAPL" (-50) 1800000).value = -90000000 := by native_dec
 
 /-! ## Portfolio with positions -/
 
-private def testPositions : List Position :=
+private def testPositionsList : List Position :=
   [ Position.mk' "SPY" 100 500000
   , Position.mk' "AAPL" 50 1800000 ]
+
+private def testPositions : Std.HashMap AssetId Position :=
+  positionsOfList testPositionsList
 
 -- Sum of position values: 50,000,000 + 90,000,000 = 140,000,000 bp
 example : sumPositionValues testPositions = 140000000 := by native_decide
