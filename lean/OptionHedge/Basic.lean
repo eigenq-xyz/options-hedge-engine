@@ -37,9 +37,9 @@ abbrev AssetId := String
 The `markPrice_pos` field is a proof that `markPrice > 0`,
 making it impossible to construct a Position with a non-positive price. -/
 structure Position where
-  asset : AssetId
-  quantity : Int      -- Signed: positive = long, negative = short
-  markPrice : Int     -- Price in basis points (×10,000)
+  assetId   : AssetId
+  quantity  : Int      -- Signed: positive = long, negative = short
+  markPrice : Int      -- Price in basis points (×10,000)
   markPrice_pos : markPrice > 0
   deriving DecidableEq
 
@@ -47,16 +47,16 @@ instance : BEq Position := ⟨fun a b => decide (a = b)⟩
 
 instance : Repr Position where
   reprPrec p _ :=
-    s!"Position(asset := {repr p.asset}, quantity := {repr p.quantity}, markPrice := {repr p.markPrice})"
+    s!"Position(assetId := {repr p.assetId}, quantity := {repr p.quantity}, markPrice := {repr p.markPrice})"
 
 instance : Inhabited Position where
   default := ⟨"", 0, 1, by omega⟩
 
 /-- Smart constructor: builds a Position with price proved positive.
     The proof is auto-discharged by `omega` for concrete positive literals. -/
-def Position.mk' (asset : AssetId) (quantity : Int) (markPrice : Int)
+def Position.mk' (assetId : AssetId) (quantity : Int) (markPrice : Int)
     (h : markPrice > 0 := by omega) : Position :=
-  ⟨asset, quantity, markPrice, h⟩
+  ⟨assetId, quantity, markPrice, h⟩
 
 /-- Calculate the market value of a single position -/
 @[inline]
@@ -101,6 +101,13 @@ def Portfolio.getQuantity (p : Portfolio) (id : AssetId) : Int :=
   match p.getPosition id with
   | some pos => pos.quantity
   | none     => 0
+
+/-- Get the mark price for an asset (0 if not in portfolio).
+    Safe in formulas because `getQuantity` also returns 0 for missing positions,
+    so the product `getQuantity * (executionPrice - getMarkPrice_orZero)` is zero
+    for both terms whenever the position is absent. -/
+def Portfolio.getMarkPrice_orZero (p : Portfolio) (id : AssetId) : Int :=
+  p.getPosition id |>.map (·.markPrice) |>.getD 0
 
 /-- A single trade instruction.
 
@@ -148,9 +155,10 @@ def applyTrade (p : Portfolio) (t : Trade) : Portfolio :=
     else erased.insert t.assetId ⟨t.assetId, newQty, t.executionPrice, t.executionPrice_pos⟩
   Portfolio.mk' newCash newPositions
 
-/-- Convert a List of Positions to a HashMap keyed by asset ID -/
+/-- Convert a List of Positions to a HashMap keyed by asset ID.
+    Last-write-wins for duplicate asset IDs (standard `HashMap.insert` behavior). -/
 def positionsOfList (ps : List Position) : Std.HashMap AssetId Position :=
-  ps.foldl (fun m p => m.insert p.asset p) {}
+  ps.foldl (fun m p => m.insert p.assetId p) {}
 
 /-- Build a Portfolio from cash and a List of Positions (FFI layer) -/
 def Portfolio.mkFromList (cash : Int) (ps : List Position) : Portfolio :=
@@ -159,5 +167,10 @@ def Portfolio.mkFromList (cash : Int) (ps : List Position) : Portfolio :=
 /-- Convert Portfolio positions HashMap to a List for FFI/Python -/
 def Portfolio.positionsToList (p : Portfolio) : List Position :=
   p.positions.toList.map Prod.snd
+
+/-- A portfolio is well-formed if every stored position has non-zero quantity.
+    This is maintained by `applyTrade`, which erases positions when newQty = 0. -/
+def Portfolio.WellFormed (p : Portfolio) : Prop :=
+  ∀ (id : AssetId) (pos : Position), p.positions[id]? = some pos → pos.quantity ≠ 0
 
 end OptionHedge
