@@ -68,23 +68,6 @@ option-hedge-engine/
 └── RISKS.md          # Risk register
 ```
 
-## Development Milestones
-
-Progress tracked via git tags. Proofs are distributed across milestones
-(each milestone proves its own invariants immediately).
-
-- [x] **v0.1-scaffold**: Build system, project structure, CI, core Lean types
-- [ ] **v0.2-nav**: NAV calculation with FFI setup (Lean ↔ Python)
-- [ ] **v0.3-trades**: Trade application (`Portfolio + Trade → Portfolio`) with conservation proofs
-- [ ] **v0.4-data**: Data pipeline (WRDS OptionMetrics, FRED, synthetic test data)
-- [ ] **v0.5-certs**: Certificate schema and emission (Python + Lean type definitions)
-- [ ] **v0.6-verifier**: Lean certificate parser and invariant verification pipeline
-- [ ] **v0.7-pricer**: Black-Scholes pricing, Greeks, implied vol, vol surface (DG400a validated)
-- [ ] **v0.8-options**: Options lifecycle (expiry/exercise, rolls, mark-to-market)
-- [ ] **v0.9-optimizer**: LP/QP hedging optimizer with CVaR objective + rebalancing
-- [ ] **v0.10-backtest**: Full end-to-end backtest execution
-- [ ] **v0.11-release (v1.0)**: Proof audit, CLI, JupyterBook documentation, release
-
 ## Documentation
 
 - **[DECISIONS.md](DECISIONS.md)**: Architectural decision records

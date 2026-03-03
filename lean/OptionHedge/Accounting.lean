@@ -27,14 +27,24 @@ def sumPositionValuesFFI (p : Portfolio) : Int :=
 def calcNavFFI (p : Portfolio) : Int :=
   p.nav
 
-/-- FFI: Construct a portfolio from cash and positions -/
+/-- FFI: Construct a portfolio from cash and positions (takes List, converts to HashMap) -/
 @[export hedge_mk_portfolio]
 def mkPortfolioFFI (cash : Int) (positions : List Position) : Portfolio :=
-  Portfolio.mk' cash positions
+  Portfolio.mkFromList cash positions
 
 /-- FFI: Look up a position by asset ID -/
 @[export hedge_get_position]
 def getPositionFFI (p : Portfolio) (id : AssetId) : Option Position :=
   p.getPosition id
+
+/-- FFI: Apply a trade to a portfolio -/
+@[export hedge_apply_trade]
+def applyTradeFFI (p : Portfolio) (t : Trade) : Portfolio :=
+  applyTrade p t
+
+/-- FFI: Convert portfolio positions to a List for Python -/
+@[export hedge_portfolio_positions_to_list]
+def portfolioPositionsToListFFI (p : Portfolio) : List Position :=
+  p.positionsToList
 
 end OptionHedge

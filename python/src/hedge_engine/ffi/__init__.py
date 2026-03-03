@@ -10,10 +10,12 @@ __all__ = [
     "position_value",
     "sum_position_values",
     "get_position",
+    "apply_trade",
 ]
 
 try:
     from .lean_ffi import (  # type: ignore[import-untyped]
+        apply_trade,
         calc_nav,
         get_position,
         initialize_lean,
@@ -47,3 +49,29 @@ except ImportError:
             if p["asset_id"] == asset_id:
                 return p
         return None
+
+    def apply_trade(
+        cash: int,
+        positions: list[dict[str, int | str]],
+        asset_id: str,
+        delta_quantity: int,
+        execution_price: int,
+        fee: int,
+    ) -> dict[str, int | list[dict[str, int | str]]]:
+        """Stub for hedge_apply_trade: apply a trade to a portfolio.
+
+        Returns {"cash": int, "positions": list[dict], "nav": int}.
+        Mirrors applyTrade semantics from Basic.lean exactly.
+        """
+        old_qty = next((int(p["quantity"]) for p in positions if p["asset_id"] == asset_id), 0)
+        new_qty = old_qty + delta_quantity
+        new_cash = cash - (delta_quantity * execution_price + fee)
+        stripped = [p for p in positions if p["asset_id"] != asset_id]
+        if new_qty == 0:
+            new_positions: list[dict[str, int | str]] = list(stripped)
+        else:
+            new_positions = stripped + [
+                {"asset_id": asset_id, "quantity": new_qty, "mark_price": execution_price}
+            ]
+        nav = new_cash + sum(int(p["quantity"]) * int(p["mark_price"]) for p in new_positions)
+        return {"cash": new_cash, "positions": new_positions, "nav": nav}
