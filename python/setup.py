@@ -133,27 +133,22 @@ if libuv_lib_dir is None:
 #   libleanrt.so (shared) instead, which IS compiled with -fPIC.  The .so
 #   records a NEEDED entry for libleanrt.so, so the dynamic linker loads it
 #   automatically; no -force_load / --whole-archive trick is needed.
-if platform.system() == "Darwin":
-    library_dirs = [libuv_lib_dir]
-    libraries = ["uv"]
-    link_args = [
-        f"-Wl,-force_load,{LEAN_LIB_DIR / 'libleanrt.a'}",
-        f"-Wl,-rpath,{libuv_lib_dir}",
-    ]
-else:
-    leanrt_so = LEAN_LIB_DIR / "libleanrt.so"
-    if not leanrt_so.exists():
-        raise RuntimeError(
-            f"libleanrt.so not found at {leanrt_so}.\n"
-            "Lean 4 toolchains for Linux ship both static (libleanrt.a) and\n"
-            "shared (libleanrt.so) runtime libraries.  Check your elan installation."
-        )
-    library_dirs = [str(LEAN_LIB_DIR), libuv_lib_dir]
-    libraries = ["leanrt", "uv"]
-    link_args = [
-        f"-Wl,-rpath,{LEAN_LIB_DIR}",
-        f"-Wl,-rpath,{libuv_lib_dir}",
-    ]
+# libleanrt.a on Linux uses non-PIC TLS (R_X86_64_TPOFF32) which cannot
+# appear in a dlopen'd shared object.  The Cython extension is therefore
+# only supported on macOS.  CI runs on macos-latest for this reason.
+if platform.system() != "Darwin":
+    raise RuntimeError(
+        "lean_ffi.so can only be built on macOS.\n"
+        "libleanrt.a on Linux uses non-PIC TLS relocations that are\n"
+        "incompatible with dlopen'd shared objects (Python extensions)."
+    )
+
+library_dirs = [libuv_lib_dir]
+libraries = ["uv"]
+link_args = [
+    f"-Wl,-force_load,{LEAN_LIB_DIR / 'libleanrt.a'}",
+    f"-Wl,-rpath,{libuv_lib_dir}",
+]
 
 extensions = [
     Extension(
