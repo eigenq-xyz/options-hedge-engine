@@ -34,7 +34,8 @@ Formally verified options portfolio backtesting and hedging engine. Lean 4 imple
 lean/           — Lean 4 accounting kernel (Lake build system, Mathlib dependency)
 python/         — Python package managed by uv (src/hedge_engine/)
 integration/    — Cross-language integration tests
-book/           — JupyterBook documentation
+docs/           — JupyterBook documentation site (builds to GitHub Pages)
+notebooks/      — standalone executable notebooks (demo)
 data/           — Encrypted market data (git-crypt)
 ```
 

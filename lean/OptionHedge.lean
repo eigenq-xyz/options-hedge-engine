@@ -9,19 +9,24 @@ import OptionHedge.Basic
 /-!
 # Option Hedge Engine
 
-Formally verified options portfolio accounting and hedging system.
+Formally verified options portfolio accounting and hedging system (v0.4).
 
 This library provides:
-- Exact decimal arithmetic using scaled integers
-- Portfolio state representation and NAV calculation
-- Formally proven invariants (NAV identity, self-financing, conservation)
-- Certificate-based verification of state transitions
+- Exact decimal arithmetic using scaled integers (basis points × 10,000)
+- Portfolio state representation with `value_valid` proof field
+- Formally proven accounting invariants: `valueIdentity`, `valueUpdateFormula`,
+  `selfFinancing`, `quantityConservation`, `cashUpdateCorrect`
+- European option settlement: `putCallParity`, `settlement_value_formula`
+- FFI exports (C symbols via `@[export hedge_*]`) for Cython bridge
 
-## Main Components
+## Module structure
 
-- `OptionHedge.Basic`: Core types (`AssetId`, `Position`, `Portfolio` with NAV invariant)
-- `OptionHedge.Accounting`: FFI exports with `hedge_` prefix
-- `OptionHedge.Invariants`: Formal theorems (NAV identity, domain constraints)
-- `OptionHedge.Tests.UnitTests`: Concrete computation tests
-- `OptionHedge.Certificate`: JSON certificate parsing and verification (TODO: v0.6)
+```
+Basic.lean            — Core types: AssetId, Position, Portfolio, Trade
+Accounting.lean       — FFI exports: hedge_apply_trade, hedge_settle_option, …
+Invariants.lean       — Accounting theorems (valueUpdateFormula, selfFinancing, …)
+Options.lean          — EuropeanOption, callPayoff, putPayoff, applySettlement
+OptionInvariants.lean — Settlement theorems (putCallParity, settlement_value_formula)
+Tests/UnitTests.lean  — Concrete computation tests via native_decide
+```
 -/

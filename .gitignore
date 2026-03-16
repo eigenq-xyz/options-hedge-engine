@@ -41,7 +41,7 @@ lean/build/
 lean/lake-manifest.json
 
 # JupyterBook
-book/_build/
+docs/_build/
 .jupyter_cache/
 
 # IDE

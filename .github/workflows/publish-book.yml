@@ -40,18 +40,18 @@ jobs:
       - name: Cache executed notebooks
         uses: actions/cache@v4
         with:
-          path: book/_build/.jupyter_cache
+          path: docs/_build/.jupyter_cache
           key: jupyter-book-cache-${{ hashFiles('python/pyproject.toml') }}-${{ hashFiles('notebooks/**') }}
 
       - name: Build the JupyterBook
         working-directory: python
         run: |
-          uv run jupyter-book build ../book/ --path-output ../book/_build
+          uv run jupyter-book build ../docs/ --path-output ../docs/_build
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: book/_build/html
+          path: docs/_build/html
 
   deploy:
     needs: build-book
