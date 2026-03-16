@@ -107,7 +107,12 @@ force_load_libs = [
 if platform.system() == "Darwin":
     libuv_dirs = ["/opt/homebrew/lib", "/usr/local/lib"]
 else:
-    libuv_dirs = ["/usr/lib", "/usr/local/lib"]
+    libuv_dirs = [
+        "/usr/lib",
+        "/usr/local/lib",
+        "/usr/lib/x86_64-linux-gnu",
+        "/usr/lib/aarch64-linux-gnu",
+    ]
 
 libuv_lib_dir = next(
     (
@@ -115,6 +120,7 @@ libuv_lib_dir = next(
         for d in libuv_dirs
         if (Path(d) / "libuv.dylib").exists()
         or (Path(d) / "libuv.so").exists()
+        or (Path(d) / "libuv.so.1").exists()
     ),
     None,
 )
@@ -125,10 +131,18 @@ if libuv_lib_dir is None:
         "apt install libuv1-dev  (Linux)"
     )
 
-link_args = [
-    f"-Wl,-force_load,{LEAN_LIB_DIR / 'libleanrt.a'}",
-    f"-Wl,-rpath,{libuv_lib_dir}",
-]
+if platform.system() == "Darwin":
+    link_args = [
+        f"-Wl,-force_load,{LEAN_LIB_DIR / 'libleanrt.a'}",
+        f"-Wl,-rpath,{libuv_lib_dir}",
+    ]
+else:
+    # GNU ld: -force_load equivalent is --whole-archive around the target archive
+    link_args = [
+        f"-Wl,--whole-archive,{LEAN_LIB_DIR / 'libleanrt.a'}",
+        "-Wl,--no-whole-archive",
+        f"-Wl,-rpath,{libuv_lib_dir}",
+    ]
 
 extensions = [
     Extension(
