@@ -24,7 +24,12 @@ from pathlib import Path
 import pytest
 
 from hedge_engine.backtest.data_types import PricePath
-from hedge_engine.backtest.runner import DeltaHedgeResult, run_delta_hedge
+from hedge_engine.backtest.runner import (
+    DeltaHedgeResult,
+    OptionLeg,
+    run_delta_hedge,
+    run_portfolio_hedge,
+)
 from hedge_engine.backtest.scenarios import (
     HULL_192_K,
     HULL_192_N_CONTRACTS,
@@ -34,6 +39,10 @@ from hedge_engine.backtest.scenarios import (
     HULL_193_N_CONTRACTS,
     HULL_193_R,
     HULL_193_SIGMA,
+    STRADDLE_K,
+    STRADDLE_N_CONTRACTS,
+    STRADDLE_R,
+    STRADDLE_SIGMA,
     hull_192_path,
     hull_193_path,
 )
@@ -449,6 +458,106 @@ class TestGBMSmoke:
         assert failures == []
 
 
+class TestPortfolioHedge:
+    """Tests for run_portfolio_hedge: multi-leg option portfolios."""
+
+    def _straddle_legs(self) -> list[OptionLeg]:
+        return [
+            OptionLeg(
+                option_id="CALL_K50",
+                option_type="call",
+                K=STRADDLE_K,
+                sigma=STRADDLE_SIGMA,
+                n_contracts=-STRADDLE_N_CONTRACTS,
+            ),
+            OptionLeg(
+                option_id="PUT_K50",
+                option_type="put",
+                K=STRADDLE_K,
+                sigma=STRADDLE_SIGMA,
+                n_contracts=-STRADDLE_N_CONTRACTS,
+            ),
+        ]
+
+    def test_straddle_all_certificates_pass(self) -> None:
+        """All step certificates must hold for a short straddle backtest."""
+        result = run_portfolio_hedge(
+            path=hull_192_path(),
+            legs=self._straddle_legs(),
+            r=STRADDLE_R,
+        )
+        failures = [c for c in result.certificates if not c.invariant_holds]
+        assert failures == [], f"{len(failures)} certificate(s) failed"
+
+    def test_straddle_cost_positive_and_bounded(self) -> None:
+        """Short straddle hedging cost is positive and less than premium collected."""
+        result = run_portfolio_hedge(
+            path=hull_192_path(),
+            legs=self._straddle_legs(),
+            r=STRADDLE_R,
+        )
+        assert result.total_hedging_cost > 0, "Expected positive hedging cost"
+        # Cost must be less than total premium received (call + put at S₀=49, K=50)
+        from hedge_engine.pricer.black_scholes import bs_price
+
+        path = hull_192_path()
+        S0 = path.prices[0]
+        T0 = path.times[-1]
+        call_prem = bs_price(
+            S=S0,
+            K=STRADDLE_K,
+            T=T0,
+            r=STRADDLE_R,
+            sigma=STRADDLE_SIGMA,
+            option_type="call",
+        ).value
+        put_prem = bs_price(
+            S=S0,
+            K=STRADDLE_K,
+            T=T0,
+            r=STRADDLE_R,
+            sigma=STRADDLE_SIGMA,
+            option_type="put",
+        ).value
+        total_premium = (call_prem + put_prem) * STRADDLE_N_CONTRACTS
+        assert result.total_hedging_cost < total_premium * 2, (
+            f"Cost {result.total_hedging_cost:.0f} unreasonably large vs "
+            f"premium {total_premium:.0f}"
+        )
+
+    def test_portfolio_hedge_requires_legs(self) -> None:
+        """run_portfolio_hedge raises ValueError with empty legs list."""
+        with pytest.raises(ValueError, match="At least one"):
+            run_portfolio_hedge(path=hull_192_path(), legs=[], r=0.05)
+
+    def test_single_call_matches_run_delta_hedge(self) -> None:
+        """run_portfolio_hedge with one call leg matches run_delta_hedge output."""
+        path = hull_192_path()
+        single_leg_result = run_portfolio_hedge(
+            path=path,
+            legs=[
+                OptionLeg(
+                    option_id="CALL",
+                    option_type="call",
+                    K=HULL_192_K,
+                    sigma=HULL_192_SIGMA,
+                    n_contracts=-HULL_192_N_CONTRACTS,
+                )
+            ],
+            r=HULL_192_R,
+        )
+        single_run_result = run_delta_hedge(
+            path=path,
+            K=HULL_192_K,
+            r=HULL_192_R,
+            sigma=HULL_192_SIGMA,
+            n_contracts=HULL_192_N_CONTRACTS,
+        )
+        assert single_leg_result.total_hedging_cost == pytest.approx(
+            single_run_result.total_hedging_cost, rel=0.001
+        )
+
+
 class TestRealDataBacktest:
     """Real-data integration tests — skipped when WRDS data is absent.
 
@@ -523,7 +632,11 @@ class TestRealDataBacktest:
             ).days / 365.0
             if T_total <= 0:
                 continue
-            und_prices = [s.mid_price for s in snaps]  # placeholder
+            # Use contemporaneous underlying prices from opprcd spotprice column.
+            # Rows without underlying_price are skipped (data quality guard).
+            if any(s.underlying_price is None for s in snaps):
+                continue
+            und_prices = [s.underlying_price for s in snaps]  # type: ignore[misc]
             times = [
                 (pd.Timestamp(s.date) - pd.Timestamp(first.date)).days / 365.0
                 for s in snaps

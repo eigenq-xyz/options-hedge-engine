@@ -111,3 +111,13 @@ HULL_193_N_CONTRACTS = HULL_192_N_CONTRACTS
 # Expected total hedging cost from Hull Table 19.3 ($)
 HULL_193_EXPECTED_COST = 256_600.0
 HULL_193_COST_TOLERANCE = 0.03  # ±3%
+
+# --- Short straddle scenario (Hull 19.2 path, ATM straddle) ----------------
+# Uses the Hull 19.2 price path with a written straddle (short call + short put)
+# at K=50.  S₀=49 is near ATM; the call expires ITM (S_T=57.25 > K=50) and
+# the put expires OTM.  This scenario demonstrates portfolio-level delta
+# hedging with net delta ≈ 0 initially and growing as the spot moves.
+STRADDLE_K = 50.0
+STRADDLE_R = 0.05
+STRADDLE_SIGMA = 0.20
+STRADDLE_N_CONTRACTS = 100_000  # written contracts per leg

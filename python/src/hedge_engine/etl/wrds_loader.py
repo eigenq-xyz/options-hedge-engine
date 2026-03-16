@@ -156,12 +156,17 @@ def optionmetrics_option_snapshots_from_df(
     bid_col: str = "best_bid",
     ask_col: str = "best_offer",
     vol_col: str = "impl_volatility",
+    spot_col: str = "underlying_price",
 ) -> list[OptionSnapshot]:
     """Parse an OptionMetrics ``opprcd`` table into ``OptionSnapshot`` objects.
 
     OptionMetrics does not provide a mid-price column; this function
     computes ``mid_price = (best_bid + best_offer) / 2`` and skips rows
     where either quote is missing or where the spread is crossed.
+
+    The ``underlying_price`` column (``spotprice`` in raw OptionMetrics,
+    renamed to ``underlying_price`` on export) is read into
+    :attr:`OptionSnapshot.underlying_price` when present.
 
     Args:
         df: Raw OptionMetrics ``opprcd`` DataFrame.
@@ -175,6 +180,8 @@ def optionmetrics_option_snapshots_from_df(
         ask_col: Best offer / ask price column (dollars).
         vol_col: Implied volatility column (fraction, e.g. 0.20 for
             20 %).
+        spot_col: Contemporaneous underlying spot price column.  If the
+            column is absent the field is left as ``None``.
 
     Returns:
         List of validated :class:`OptionSnapshot` instances.  Rows with
@@ -183,6 +190,7 @@ def optionmetrics_option_snapshots_from_df(
     import math
 
     type_map = {"C": "call", "P": "put"}
+    has_spot = spot_col in df.columns
     rows: list[OptionSnapshot] = []
     for _, row in df.iterrows():
         bid = float(row[bid_col]) if bid_col in df.columns else float("nan")
@@ -194,6 +202,12 @@ def optionmetrics_option_snapshots_from_df(
             continue
         raw_type = str(row[type_col])
         option_type = type_map.get(raw_type.upper(), raw_type)
+        spot: float | None = None
+        if has_spot:
+            raw_spot = float(row[spot_col])
+            spot = (
+                raw_spot if raw_spot > 0 and not math.isnan(raw_spot) else None
+            )
         rows.append(
             OptionSnapshot(
                 underlying_ticker=str(row[underlying_col]),
@@ -203,6 +217,7 @@ def optionmetrics_option_snapshots_from_df(
                 option_type=option_type,
                 mid_price=mid,
                 implied_vol=float(row[vol_col]),
+                underlying_price=spot,
             )
         )
     return rows

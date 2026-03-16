@@ -48,6 +48,8 @@ class OptionSnapshot(BaseModel):
         option_type: ``"call"`` or ``"put"``.
         mid_price: Mid-market option price in dollars (non-negative).
         implied_vol: Implied volatility as a fraction (e.g. 0.20 for 20%).
+        underlying_price: Contemporaneous underlying spot price in dollars.
+            Optional; populated from ``spotprice`` in OptionMetrics ``opprcd``.
     """
 
     underlying_ticker: str
@@ -57,6 +59,7 @@ class OptionSnapshot(BaseModel):
     option_type: str
     mid_price: float = Field(ge=0)
     implied_vol: float = Field(gt=0)
+    underlying_price: float | None = Field(default=None, gt=0)
 
     @field_validator("option_type")
     @classmethod

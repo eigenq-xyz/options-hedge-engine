@@ -44,6 +44,33 @@ class TestOptionSnapshot:
         )
         assert s.option_type == "call"
         assert s.underlying_ticker == "SPY"
+        assert s.underlying_price is None  # optional, absent by default
+
+    def test_valid_call_with_underlying_price(self) -> None:
+        s = OptionSnapshot(
+            underlying_ticker="SPY",
+            date="2024-01-15",
+            expiry="2024-03-15",
+            strike=450.0,
+            option_type="call",
+            mid_price=5.0,
+            implied_vol=0.18,
+            underlying_price=449.5,
+        )
+        assert s.underlying_price == 449.5
+
+    def test_nonpositive_underlying_price_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            OptionSnapshot(
+                underlying_ticker="SPY",
+                date="2024-01-15",
+                expiry="2024-03-15",
+                strike=450.0,
+                option_type="call",
+                mid_price=5.0,
+                implied_vol=0.18,
+                underlying_price=0.0,
+            )
 
     def test_valid_put(self) -> None:
         s = OptionSnapshot(
@@ -157,3 +184,79 @@ class TestWRDSLoader:
         assert len(rows) == 1
         assert rows[0].option_type == "call"
         assert rows[0].strike == 450.0
+
+    def test_optionmetrics_from_df_with_spotprice(self, pd: "object") -> None:
+        """optionmetrics loader populates underlying_price from spotprice column."""
+        import pandas  # type: ignore[import-untyped]
+
+        from hedge_engine.etl.wrds_loader import (
+            optionmetrics_option_snapshots_from_df,
+        )
+
+        df = pandas.DataFrame(
+            {
+                "underlying_ticker": ["SPY", "SPY", "SPY"],
+                "date": ["2024-01-15", "2024-01-16", "2024-01-17"],
+                "expiry": ["2024-02-16", "2024-02-16", "2024-02-16"],
+                "strike": [450.0, 450.0, 450.0],
+                "option_type": ["C", "C", "C"],
+                "best_bid": [5.0, 5.2, 4.8],
+                "best_offer": [5.2, 5.4, 5.0],
+                "impl_volatility": [0.18, 0.18, 0.18],
+                "underlying_price": [449.5, 450.1, 448.0],
+            }
+        )
+        rows = optionmetrics_option_snapshots_from_df(df)
+        assert len(rows) == 3
+        assert rows[0].underlying_price == pytest.approx(449.5)
+        assert rows[1].underlying_price == pytest.approx(450.1)
+
+    def test_optionmetrics_from_df_without_spotprice(
+        self, pd: "object"
+    ) -> None:
+        """underlying_price is None when spotprice column is absent."""
+        import pandas  # type: ignore[import-untyped]
+
+        from hedge_engine.etl.wrds_loader import (
+            optionmetrics_option_snapshots_from_df,
+        )
+
+        df = pandas.DataFrame(
+            {
+                "underlying_ticker": ["SPY"],
+                "date": ["2024-01-15"],
+                "expiry": ["2024-02-16"],
+                "strike": [450.0],
+                "option_type": ["C"],
+                "best_bid": [5.0],
+                "best_offer": [5.2],
+                "impl_volatility": [0.18],
+            }
+        )
+        rows = optionmetrics_option_snapshots_from_df(df)
+        assert len(rows) == 1
+        assert rows[0].underlying_price is None
+
+    def test_optionmetrics_skips_crossed_spread(self, pd: "object") -> None:
+        """Rows with ask < bid are silently skipped."""
+        import pandas  # type: ignore[import-untyped]
+
+        from hedge_engine.etl.wrds_loader import (
+            optionmetrics_option_snapshots_from_df,
+        )
+
+        df = pandas.DataFrame(
+            {
+                "underlying_ticker": ["SPY", "SPY"],
+                "date": ["2024-01-15", "2024-01-16"],
+                "expiry": ["2024-02-16", "2024-02-16"],
+                "strike": [450.0, 450.0],
+                "option_type": ["C", "C"],
+                "best_bid": [5.5, 5.0],  # first row: crossed spread
+                "best_offer": [5.0, 5.2],
+                "impl_volatility": [0.18, 0.18],
+                "underlying_price": [449.5, 449.5],
+            }
+        )
+        rows = optionmetrics_option_snapshots_from_df(df)
+        assert len(rows) == 1  # only the second row passes
