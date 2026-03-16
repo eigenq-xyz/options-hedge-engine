@@ -86,7 +86,7 @@ Stochastic Process → Python Simulator → Certificate (JSON)
 
 **✅ DO:**
 - Accounting functions are pure: `Portfolio → Trade → Portfolio`
-- Accept prices/quantities as inputs (don't care where they came from)
+- Accept prices/quantities as inputs (data source is irrelevant to the kernel)
 - Certificate schema describes "what data looks like", not "where it came from"
 - Keep time-stepping logic in Python (can be historical or simulated)
 

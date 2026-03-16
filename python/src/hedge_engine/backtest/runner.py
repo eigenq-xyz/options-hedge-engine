@@ -4,7 +4,7 @@ Source-agnostic: accepts any `PricePath`; the caller chooses whether
 the path came from GBM, Hull 19.2 hardcoded data, or WRDS.
 
 Every portfolio state transition is routed through the Lean kernel FFI
-(via the Python stubs until the Cython extension is built).  At each
+(via the Cython extension lean_ffi.so).  At each
 step the runner emits a `StepCertificate` verifying `valueUpdateFormula`.
 A violation halts immediately with a diagnostic.
 
@@ -73,14 +73,15 @@ def _qty(d: _PortfolioDict, asset_id: str, default: int = 0) -> int:
     )
 
 
-def _apply_interest(d: _PortfolioDict, rate_per_step: float) -> _PortfolioDict:
+def _apply_interest(d: _PortfolioDict, r: float, dt: float) -> _PortfolioDict:
     """Accrue one period of interest on the cash balance.
 
-    A negative cash balance represents borrowing; multiplying by
-    (1 + r/n) increases the magnitude, reflecting financing cost.
+    A negative cash balance represents borrowing; interest accrues at
+    rate r over the actual time interval dt (years), reflecting financing cost.
+    Uses round() to avoid systematic truncation bias on negative balances.
     """
     old_cash = _cash(d)
-    new_cash = int(old_cash * rate_per_step) + old_cash
+    new_cash = old_cash + round(old_cash * r * dt)
     new_pv = new_cash + sum(
         int(p["quantity"]) * int(p["mark_price"]) for p in _positions(d)
     )
@@ -169,15 +170,15 @@ def run_delta_hedge(
     portfolio_values: list[int] = [_pv(port)]
 
     # --- Steps 1..N-1: rebalance at each intermediate price ----------------
-    rate_per_step = r * path.dt
     for step_idx in range(1, path.n_steps):
         t = path.times[step_idx]
+        dt = t - path.times[step_idx - 1]
         S = path.prices[step_idx]
         T_rem = T_total - t
         spot_bp = to_bp(S)
 
         # 0. Accrue one period of financing cost on the cash balance
-        port = _apply_interest(port, rate_per_step)
+        port = _apply_interest(port, r=r, dt=dt)
 
         # 1. Mark option to market (quantity=0 trade at new BS price)
         new_opt_price_bp = bs_price(
@@ -297,7 +298,7 @@ def run_portfolio_hedge(
 
     The net delta across all legs determines the underlying position at each
     rebalancing step.  All portfolio state transitions go through the Lean
-    kernel FFI (via Python stubs until the Cython extension is built).
+    kernel FFI (via the Cython extension lean_ffi.so).
 
     Example — written straddle (short call + short put at K=50)::
 
@@ -381,14 +382,14 @@ def run_portfolio_hedge(
     portfolio_values: list[int] = [_pv(port)]
 
     # --- Steps 1..N-1: rebalance at each intermediate price ----------------
-    rate_per_step = r * path.dt
     for step_idx in range(1, path.n_steps):
         t = path.times[step_idx]
+        dt = t - path.times[step_idx - 1]
         S = path.prices[step_idx]
         T_rem = T_total - t
         spot_bp = to_bp(S)
 
-        port = _apply_interest(port, rate_per_step)
+        port = _apply_interest(port, r=r, dt=dt)
 
         # Mark all option legs to market
         for leg in legs:

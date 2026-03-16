@@ -88,13 +88,14 @@ theorem putPayoff_otm (spot strike : Int) (h : spot ≥ strike) :
     putPayoff spot strike = 0 :=
   max_eq_left (by omega)
 
-/-! ## Put-Call Parity -/
+/-! ## Integer Payoff Difference -/
 
-/-- Integer put-call parity: call payoff minus put payoff equals spot minus strike.
+/-- Integer payoff difference: call payoff minus put payoff equals spot minus strike.
 
-    Economic meaning: long call + short put = long forward (at expiry, exactly).
-    Exact integer identity — no floating-point error, no approximation. -/
-theorem putCallParity (spot strike : Int) :
+    This is a pure integer identity (max(0,S−K) − max(0,K−S) = S−K), proved by omega.
+    It does not model the financial put-call parity relation C − P = S − K·e^{−rT},
+    which requires continuous-time pricing and is not expressed here. -/
+theorem integerPayoffDifference (spot strike : Int) :
     callPayoff spot strike - putPayoff spot strike = spot - strike := by
   simp only [callPayoff, putPayoff]; omega
 
@@ -159,7 +160,8 @@ theorem settlement_position_closed (p : Portfolio) (opt : EuropeanOption)
 
 /-! ## Crown Jewel: Settlement Portfolio Value Formula -/
 
-/-- Settlement portfolio value formula.
+/-- Settlement value formula: settling an option changes portfolio value by
+    qty × (payoff − mark), where payoff = max(0, S−K) for calls.
 
     Economic meaning: at expiry, the change in portfolio value equals the quantity held
     times the difference between the option's payoff and its pre-expiry mark price.
@@ -167,8 +169,11 @@ theorem settlement_position_closed (p : Portfolio) (opt : EuropeanOption)
     - If `payoff < mark`: the portfolio loses (option was overvalued or expired OTM).
     - If `payoff = mark`: portfolio value is unchanged (option was fairly marked).
 
-    This holds for BOTH in-the-money (`applyTrade` path) and out-of-the-money
-    (`abandonPosition` path), unifying both settlement branches into one formula. -/
+    Unifies ITM settlement (`applyTrade` path) and OTM abandonment (`abandonPosition` path)
+    in a single equation, proved without case-splitting on the runner side.
+
+    Formal proof is stronger than a unit test: it holds regardless of moneyness,
+    strike, spot price, or contract count. -/
 theorem settlement_value_formula (p : Portfolio) (opt : EuropeanOption)
     (pos : Position) (hPos : p.getPosition opt.assetId = some pos)
     (spot : Int) :

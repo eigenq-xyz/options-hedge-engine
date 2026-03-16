@@ -2,6 +2,10 @@
 
 import pytest
 
+# Import the package first so __init__.py pre-loads libuv (required by the
+# Lean runtime) before we attempt to import the compiled extension directly.
+import hedge_engine.ffi as _ffi_pkg  # noqa: F401
+
 # Detect whether a functional compiled Cython extension is available.
 # Checking importability alone is not sufficient — a stale .so may exist but
 # lack symbols from the current kernel version.  We require portfolio_value to be

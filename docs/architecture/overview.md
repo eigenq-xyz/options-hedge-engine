@@ -80,7 +80,7 @@ class StepCertificate:
     invariant_holds: bool         # delta_pv == expected_delta_pv
 ```
 
-`invariant_holds = False` raises `ValueError` immediately — the runner cannot continue
+`invariant_holds = False` raises `ValueError` immediately; the runner cannot continue
 with a violated accounting invariant.
 
 ## Interest Accrual

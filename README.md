@@ -11,7 +11,7 @@
 
 A formally verified options hedging engine combining Lean 4 theorem proving with Python numerical computing.
 
-Every portfolio state transition — every trade, every mark-to-market update, every option settlement — carries a machine-checked proof of correctness. Not "we tested it." Provably correct, with the proof attached.
+Every portfolio state transition (every trade, every mark-to-market update, every option settlement) carries a machine-checked proof of correctness. The results are not merely tested; they are provably correct, with the proof attached.
 
 The engine runs a discrete delta-hedging simulation for written European calls, routes every accounting step through the Lean kernel, and emits a `StepCertificate` at each rebalancing. A bug in the accounting logic raises `ValueError` immediately rather than silently producing wrong numbers.
 
@@ -38,7 +38,7 @@ The engine runs a discrete delta-hedging simulation for written European calls, 
 | `selfFinancing` | Trading at the mark price changes PV only by the fee |
 | `quantityConservation` | Shares cannot appear from thin air after a trade |
 | `cashUpdateCorrect` | Every dollar spent on a trade comes from cash |
-| `putCallParity` | Call payoff − put payoff = spot − strike, exactly (integer arithmetic) |
+| `integerPayoffDifference` | Call payoff − put payoff = spot − strike (pure integer identity; not continuous-time put-call parity) |
 | `settlement_value_formula` | At expiry ΔPV = qty × (payoff − mark), unifying ITM and OTM |
 
 `settlement_value_formula` is the crown jewel: a single theorem covering both settlement branches (in-the-money via `applyTrade`, out-of-the-money via `abandonPosition`) with zero sorry.
@@ -57,7 +57,7 @@ Tolerances: `abs=0.01` on price, `abs=0.001` on delta.
 
 ### Monte Carlo Convergence (the Black-Scholes theorem)
 
-The primary numeric gate is not a single path — it is the theorem that the expected discrete hedge cost converges to the Black-Scholes price as paths → ∞.
+The primary numeric gate is not a single path; it is the theorem that the expected discrete hedge cost converges to the Black-Scholes price as paths → ∞.
 
 Over 500 seeded GBM paths (20 weekly rebalancing steps each), the mean hedging cost is within ±3 % of the BS price. Every step on every path carries a `StepCertificate` confirming `valueUpdateFormula` held.
 
@@ -111,7 +111,7 @@ Python (ETL, simulation, backtest runner)
             └─ hedge_portfolio_value  (O(1) field read — value_valid proof)
 ```
 
-**Lean** implements all accounting as pure functions (`Portfolio → Trade → Portfolio`) and carries formal proofs. It never touches I/O. **Python** handles data loading, BS pricing (treated as advanced ETL), the simulation clock, and interest accrual. **Cython FFI** bridges the two (Python stubs used until the Cython extension is built).
+**Lean** implements all accounting as pure functions (`Portfolio → Trade → Portfolio`) and carries formal proofs. It never touches I/O. **Python** handles data loading, BS pricing (treated as advanced ETL), the simulation clock, and interest accrual. **Cython FFI** bridges the two (Python stubs are used until the Cython extension is built).
 
 All monetary values cross the FFI boundary as basis-point integers (×10,000): `to_bp(50.25) = 502_500`. Lean never operates on floats.
 
@@ -173,27 +173,27 @@ The `settlement_value_formula` theorem unifies ITM and OTM option expiry into a 
 
 **Why formal proof rather than testing?**
 
-A unit test checks one input. A Lean proof checks all inputs. For accounting invariants — "after any trade, the portfolio value equals cash plus mark-to-market positions" — a proof is qualitatively stronger than any finite test suite.
+A unit test checks one input. A Lean proof checks all inputs. For accounting invariants such as "after any trade, the portfolio value equals cash plus mark-to-market positions," a proof is qualitatively stronger than any finite test suite.
 
 **Lean as a development scaffold for human-AI collaboration.**
 
-There is a second, less obvious role the proofs play: they act as a formal specification that constrains what can be written during development. This project is built with an AI coding assistant. Every accounting function the AI generates must satisfy the pre-existing theorem statements — if the implementation is wrong, the Lean proof fails to compile and the error is caught immediately, before any test is run. The theorems are written (or reviewed) by the human; the AI produces implementations that must discharge them.
+There is a second, less obvious role the proofs play: they act as a formal specification that constrains what can be written during development. This project is built with an AI coding assistant. Every accounting function the AI generates must satisfy the pre-existing theorem statements. If the implementation is wrong, the Lean proof fails to compile and the error is caught immediately, before any test is run. The theorems are written (or reviewed) by the human; the AI produces implementations that must discharge them.
 
 This creates a new kind of development loop:
 
 1. Human specifies *what must be true* (the theorem)
 2. AI generates code that *must satisfy it* (the implementation)
-3. Lean verifies the combination is correct (the proof compiles or it doesn't)
+3. Lean verifies the combination is correct (the proof compiles or it does not)
 4. Human reviews theorem statements, not implementation line-by-line
 
-The human's oversight is concentrated at the level of mathematical claims rather than implementation details. The AI cannot introduce a silent accounting error that passes the formal spec — it would need to change the theorem to do so, which is a visible, reviewable act. The audit trail (proof obligations + step certificates at runtime) is machine-checkable by any third party with a Lean installation.
+The human's oversight is concentrated at the level of mathematical claims rather than implementation details. The AI cannot introduce a silent accounting error that passes the formal specification; it would need to change the theorem to do so, which is a visible, reviewable act. The audit trail (proof obligations and step certificates at runtime) is machine-checkable by any third party with a Lean installation.
 
 This workflow scales: as the theorem base grows, the AI has less room to be wrong.
 
 **Roadmap:**
 
 - v0.4: Discrete delta-hedging backtest + Python stack (current)
-- v0.5: `binomial_replication_cost` theorem — single-period replication cost = risk-neutral price (integer arithmetic, no reals needed)
+- v0.5: `binomial_replication_cost` theorem: single-period replication cost = risk-neutral price (integer arithmetic, no reals needed)
 - v0.6+: Multi-period GBM convergence theorem (requires Mathlib-level real analysis)
 
 ### References
@@ -205,6 +205,6 @@ This workflow scales: as the theorem base grows, the AI has less room to be wron
 
 ---
 
-Apache 2.0 — See [LICENSE](LICENSE) for details.
+Apache 2.0. See [LICENSE](LICENSE) for details.
 
 **Academic Disclaimer**: This is research software. While the Lean proofs provide strong correctness guarantees for the accounting kernel, the overall system is not production-ready and should not be used for actual trading without extensive additional validation.

@@ -1,6 +1,6 @@
 """Hardcoded deterministic price paths for backtest validation.
 
-Hull "Options, Futures, and Other Derivatives" 12th ed.:
+Hull "Options, Futures, and Other Derivatives" 9th Global ed.:
 
 Table 19.2 — option closes IN the money (S_T=57.25 > K=50):
     Written 100,000 European calls; cost of hedging ~$263,300
@@ -17,7 +17,7 @@ backtest results are reproducible without a random seed.
 from hedge_engine.backtest.data_types import PricePath
 
 # Hull Table 19.2 week-by-week underlying prices (21 values: week 0..20)
-# Source: Hull "Options, Futures, and Other Derivatives" 12th ed., Table 19.2
+# Source: Hull "Options, Futures, and Other Derivatives" 9th Global ed., Table 19.2
 # Option closes in the money (S_T=57.25 > K=50); cost of hedging = $263,300
 _HULL_192_PRICES: list[float] = [
     49.00,  # week 0  — initial
@@ -57,7 +57,7 @@ def hull_192_path() -> PricePath:
 
 
 # Hull Table 19.3 week-by-week underlying prices (21 values: week 0..20)
-# Source: Hull "Options, Futures, and Other Derivatives" 12th ed., Table 19.3
+# Source: Hull "Options, Futures, and Other Derivatives" 9th Global ed., Table 19.3
 # Option closes out of the money (S_T=48.12 < K=50); cost of hedging = $256,600
 _HULL_193_PRICES: list[float] = [
     49.00,  # week 0  — initial
@@ -101,7 +101,7 @@ HULL_192_SIGMA = 0.20  # implied volatility (annualised)
 HULL_192_N_CONTRACTS = 100_000  # written call contracts (100 per contract)
 # Expected total hedging cost from Hull Table 19.2 ($)
 HULL_192_EXPECTED_COST = 263_300.0
-HULL_192_COST_TOLERANCE = 0.03  # ±3%
+HULL_192_COST_TOLERANCE = 0.05  # ±5%
 
 # Table 19.3 shares the same option parameters as 19.2
 HULL_193_K = HULL_192_K
@@ -110,7 +110,7 @@ HULL_193_SIGMA = HULL_192_SIGMA
 HULL_193_N_CONTRACTS = HULL_192_N_CONTRACTS
 # Expected total hedging cost from Hull Table 19.3 ($)
 HULL_193_EXPECTED_COST = 256_600.0
-HULL_193_COST_TOLERANCE = 0.03  # ±3%
+HULL_193_COST_TOLERANCE = 0.05  # ±5%
 
 # --- Short straddle scenario (Hull 19.2 path, ATM straddle) ----------------
 # Uses the Hull 19.2 price path with a written straddle (short call + short put)

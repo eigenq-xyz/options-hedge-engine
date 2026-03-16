@@ -198,12 +198,15 @@ theorem quantityConservation (p : Portfolio) (t : Trade) :
 
 /-! ### Portfolio Value Update Formula -/
 
-/-- Portfolio value update formula.
+/-- Portfolio value update formula: ΔPV = pre-trade qty × (exec price − mark) − fee.
 
     Economic meaning: when you trade an asset, the change in portfolio value equals
     the mark-to-market gain on your *existing* position (quantity × price improvement)
     minus the fee. A brand-new position (qty = 0 before) contributes zero MTM gain.
-    This formalizes that trading at a price above your mark creates immediate paper profit. -/
+    There is no "leakage" from rounding, ordering, or representation error.
+
+    Formal proof is stronger than a unit test: it holds for *every* portfolio state
+    and *every* trade, not just the tested examples. -/
 theorem valueUpdateFormula (p : Portfolio) (t : Trade) :
     (applyTrade p t).portfolioValue =
     p.portfolioValue + p.getQuantity t.assetId * (t.executionPrice - p.getMarkPrice_orZero t.assetId)

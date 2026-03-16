@@ -1,7 +1,7 @@
 # Formal Guarantees
 
 The Lean 4 accounting kernel carries machine-checked proofs for all possible inputs.
-These are not tests — the proofs are verified by Lean's type checker at compile time.
+These are not tests; the proofs are verified by Lean's type checker at compile time.
 
 ## Impossible States (by construction)
 
@@ -35,12 +35,12 @@ the type system and proven invariants, not by runtime checks.
 
 | Theorem | Economic meaning |
 |---------|-----------------|
-| `callPayoff_nonneg` | A call holder never owes money at expiry — right but not obligation. |
-| `putPayoff_nonneg` | A put holder never owes money at expiry — right but not obligation. |
+| `callPayoff_nonneg` | A call holder never owes money at expiry (right but not obligation). |
+| `putPayoff_nonneg` | A put holder never owes money at expiry (right but not obligation). |
 | `callPayoff_itm` | When S > K: call payoff = S − K exactly. |
 | `callPayoff_otm` | When S ≤ K: call payoff = 0 exactly. |
-| `putCallParity` | Call payoff − put payoff = S − K, exact integer identity. No float error. |
-| `settlement_cash_itm` | ITM settlement credits exactly qty × payoff — no over/underpayment. |
+| `integerPayoffDifference` | Call payoff − put payoff = S − K (pure integer identity; not continuous-time put-call parity). |
+| `settlement_cash_itm` | ITM settlement credits exactly qty × payoff, with no over/underpayment. |
 | `settlement_value_formula` | **Crown jewel.** ΔPV = qty × (payoff − mark), for both ITM and OTM paths unified. |
 
 ## The Crown Jewel: `settlement_value_formula`
@@ -58,11 +58,11 @@ This theorem covers **both** settlement branches in a single statement:
 - **ITM** (`payoff > 0`): `applyTrade` at the payoff price. ΔPV = qty × (payoff − mark).
 - **OTM** (`payoff = 0`): `abandonPosition` erases the worthless option. ΔPV = qty × (0 − mark) = −qty × mark (writing off the mark value).
 
-The key insight: the formula is identical in both cases — the OTM branch is just the case where `payoff = 0`.
+The key insight is that the formula is identical in both cases: the OTM branch is simply the case where `payoff = 0`.
 
 ## Zero Sorry
 
-All proofs are complete — no `sorry` tactics anywhere. `sorry` in Lean is equivalent
+All proofs are complete with no `sorry` tactics anywhere. `sorry` in Lean is equivalent
 to admitting an axiom without proof; the zero-sorry discipline means every claim in
 this codebase is actually machine-verified.
 
