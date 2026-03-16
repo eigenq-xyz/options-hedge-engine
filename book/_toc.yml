@@ -1,0 +1,25 @@
+format: jb-book
+root: intro
+parts:
+  - caption: "Formal Guarantees"
+    numbered: true
+    chapters:
+      - file: formal_guarantees
+        title: "Theorems and Impossible States"
+  - caption: "Validation"
+    numbered: true
+    chapters:
+      - file: validation
+        title: "Numerical Results"
+      - file: notebooks/delta_hedge_demo
+        title: "Delta-Hedging Demo"
+  - caption: "Architecture"
+    numbered: true
+    chapters:
+      - file: architecture/overview
+        title: "System Architecture"
+  - caption: "Research"
+    numbered: true
+    chapters:
+      - file: human_ai
+        title: "Human–AI Collaboration via Lean"

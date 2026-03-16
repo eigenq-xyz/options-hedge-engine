@@ -175,6 +175,21 @@ The `settlement_value_formula` theorem unifies ITM and OTM option expiry into a 
 
 A unit test checks one input. A Lean proof checks all inputs. For accounting invariants — "after any trade, the portfolio value equals cash plus mark-to-market positions" — a proof is qualitatively stronger than any finite test suite.
 
+**Lean as a development scaffold for human-AI collaboration.**
+
+There is a second, less obvious role the proofs play: they act as a formal specification that constrains what can be written during development. This project is built with an AI coding assistant. Every accounting function the AI generates must satisfy the pre-existing theorem statements — if the implementation is wrong, the Lean proof fails to compile and the error is caught immediately, before any test is run. The theorems are written (or reviewed) by the human; the AI produces implementations that must discharge them.
+
+This creates a new kind of development loop:
+
+1. Human specifies *what must be true* (the theorem)
+2. AI generates code that *must satisfy it* (the implementation)
+3. Lean verifies the combination is correct (the proof compiles or it doesn't)
+4. Human reviews theorem statements, not implementation line-by-line
+
+The human's oversight is concentrated at the level of mathematical claims rather than implementation details. The AI cannot introduce a silent accounting error that passes the formal spec — it would need to change the theorem to do so, which is a visible, reviewable act. The audit trail (proof obligations + step certificates at runtime) is machine-checkable by any third party with a Lean installation.
+
+This workflow scales: as the theorem base grows, the AI has less room to be wrong.
+
 **Roadmap:**
 
 - v0.4: Discrete delta-hedging backtest + Python stack (current)
