@@ -2,8 +2,7 @@ title: Options Hedge Engine
 author: Akhil Karra
 
 execute:
-  execute_notebooks: cache
-  timeout: 120
+  execute_notebooks: "off"
 
 latex:
   latex_documents:
