@@ -7,9 +7,10 @@ Cython extension (lean_ffi.so).  Build it with:
 
     cd python && python setup.py build_ext --inplace
 
-Lean's runtime depends on libuv.  On macOS/Linux, libuv must be installed
-as a system or Homebrew library.  We pre-load it with RTLD_GLOBAL so that
-its symbols are in the process namespace when the extension is dlopen'd.
+Lean's runtime depends on libleanrt and libuv.  On Linux, libleanrt.so is
+linked dynamically (libleanrt.a is not PIC-safe for shared objects).  Both
+libraries are pre-loaded with RTLD_GLOBAL so their symbols are available
+when the Cython extension is dlopen'd.
 """
 
 import ctypes
@@ -25,23 +26,28 @@ __all__ = [
     "settle_option",
 ]
 
-# Pre-load libuv into the global namespace so the Lean runtime can find it.
-# ctypes.util.find_library may not search Homebrew paths on macOS, so we
-# also probe common installation directories directly.
-_libuv_probes: list[str | None] = [
-    ctypes.util.find_library("uv"),  # system / ldconfig
-    "/opt/homebrew/lib/libuv.dylib",  # Homebrew arm64
-    "/usr/local/lib/libuv.dylib",  # Homebrew x86 / manual
-    "/usr/lib/libuv.so.1",  # Debian/Ubuntu
-    "/usr/lib/x86_64-linux-gnu/libuv.so.1",  # Ubuntu multiarch
+# Pre-load libleanrt and libuv into the global namespace before importing the
+# Cython extension.  The extension records NEEDED entries for both, but
+# pre-loading with RTLD_GLOBAL guarantees symbol visibility on all platforms.
+_preload_candidates: list[list[str | None]] = [
+    [ctypes.util.find_library("leanrt")],  # libleanrt.so (Linux only)
+    [
+        ctypes.util.find_library("uv"),
+        "/opt/homebrew/lib/libuv.dylib",  # Homebrew arm64
+        "/usr/local/lib/libuv.dylib",  # Homebrew x86 / manual
+        "/usr/lib/libuv.so.1",  # Debian/Ubuntu
+        "/usr/lib/x86_64-linux-gnu/libuv.so.1",  # Ubuntu multiarch
+    ],
 ]
-_libuv_candidates: list[str] = [p for p in _libuv_probes if p is not None]
-for _libuv_path in _libuv_candidates:
-    try:
-        ctypes.CDLL(_libuv_path, mode=ctypes.RTLD_GLOBAL)
-        break
-    except OSError:
-        continue
+for _candidates in _preload_candidates:
+    for _path in _candidates:
+        if _path is None:
+            continue
+        try:
+            ctypes.CDLL(_path, mode=ctypes.RTLD_GLOBAL)
+            break
+        except OSError:
+            continue
 
 from .lean_ffi import (  # type: ignore[import-untyped]  # noqa: E402
     apply_trade,

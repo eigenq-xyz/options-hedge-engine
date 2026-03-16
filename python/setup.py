@@ -88,22 +88,14 @@ for module in FFI_MODULES:
     lean_obj_files.append(str(obj_out))
 
 # ── Cython extension ─────────────────────────────────────────────────────────
-# Lean runtime + stdlib static libraries (must be resolved from toolchain,
-# not system libs).  libuv and libleanrt must be force-loaded so that their
-# symbols survive the macOS linker's dead-code stripping pass.
+# Lean stdlib static libraries (PIC-safe: always link statically).
 lean_static_libs = [
     str(LEAN_LIB_DIR / "libStd.a"),
     str(LEAN_LIB_DIR / "libInit.a"),
     str(LEAN_ROOT_LIB / "libgmp.a"),
 ]
-force_load_libs = [
-    str(LEAN_LIB_DIR / "libleanrt.a"),
-    str(LEAN_ROOT_LIB / "libuv.a"),
-]
-# libuv must be a dynamic dependency recorded in the .so so that the OS
-# loads it automatically when Python imports the extension.  On macOS with
-# Homebrew, libuv.dylib lives in /opt/homebrew/lib; on Linux it is a system
-# package (e.g. libuv1-dev).
+
+# libuv: dynamic dependency so the OS loads it automatically on import.
 if platform.system() == "Darwin":
     libuv_dirs = ["/opt/homebrew/lib", "/usr/local/lib"]
 else:
@@ -131,16 +123,35 @@ if libuv_lib_dir is None:
         "apt install libuv1-dev  (Linux)"
     )
 
+# libleanrt linking strategy differs by platform:
+#
+# macOS: libleanrt.a is PIC-safe; use -force_load to prevent the macOS
+#   linker from dead-stripping the runtime initialiser symbols.
+#
+# Linux: libleanrt.a is compiled without -fPIC (contains R_X86_64_TPOFF32
+#   TLS relocations that cannot appear in a shared object).  Link against
+#   libleanrt.so (shared) instead, which IS compiled with -fPIC.  The .so
+#   records a NEEDED entry for libleanrt.so, so the dynamic linker loads it
+#   automatically; no -force_load / --whole-archive trick is needed.
 if platform.system() == "Darwin":
+    library_dirs = [libuv_lib_dir]
+    libraries = ["uv"]
     link_args = [
         f"-Wl,-force_load,{LEAN_LIB_DIR / 'libleanrt.a'}",
         f"-Wl,-rpath,{libuv_lib_dir}",
     ]
 else:
-    # GNU ld: -force_load equivalent is --whole-archive around the target archive
+    leanrt_so = LEAN_LIB_DIR / "libleanrt.so"
+    if not leanrt_so.exists():
+        raise RuntimeError(
+            f"libleanrt.so not found at {leanrt_so}.\n"
+            "Lean 4 toolchains for Linux ship both static (libleanrt.a) and\n"
+            "shared (libleanrt.so) runtime libraries.  Check your elan installation."
+        )
+    library_dirs = [str(LEAN_LIB_DIR), libuv_lib_dir]
+    libraries = ["leanrt", "uv"]
     link_args = [
-        f"-Wl,--whole-archive,{LEAN_LIB_DIR / 'libleanrt.a'}",
-        "-Wl,--no-whole-archive",
+        f"-Wl,-rpath,{LEAN_LIB_DIR}",
         f"-Wl,-rpath,{libuv_lib_dir}",
     ]
 
@@ -149,8 +160,8 @@ extensions = [
         "hedge_engine.ffi.lean_ffi",
         sources=["src/hedge_engine/ffi/lean_ffi.pyx"],
         include_dirs=[str(LEAN_INCLUDE)],
-        library_dirs=[libuv_lib_dir],
-        libraries=["uv"],
+        library_dirs=library_dirs,
+        libraries=libraries,
         extra_objects=lean_obj_files + lean_static_libs,
         extra_compile_args=["-fvisibility=default"],
         extra_link_args=link_args,
