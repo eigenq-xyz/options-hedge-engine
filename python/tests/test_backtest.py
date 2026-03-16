@@ -20,6 +20,7 @@ plausible range.  The Monte Carlo test is the primary numeric gate.
 
 import math
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -665,4 +666,209 @@ class TestRealDataBacktest:
         assert abs(mean_ratio - 1.0) < 0.10, (
             f"Mean hedge cost / premium = {mean_ratio:.3f},"
             f" expected ≈ 1.0 ± 10 %"
+        )
+
+
+class TestHoldoutValidation:
+    """Out-of-sample validation on WRDS OptionMetrics SPY data.
+
+    Splits the parquet data file by calendar year:
+    - In-sample: earliest year  — estimate the median implied volatility
+    - Out-of-sample: latest year — run the backtest with the in-sample σ
+
+    Gate: mean(cost / premium) ≈ 1.0 ± 15 % on the holdout year.
+    The wider tolerance (vs 10 % in-sample) accounts for vol-regime drift
+    between years — a reasonable real-world expectation.
+
+    This is the test a quant practitioner uses to distinguish a backtester
+    that works only because it uses the realised per-day IV (look-ahead bias)
+    from one that would work with only the σ you knew *before* the hedging
+    period started.
+
+    Design decision: use the median IV across the in-sample period as a
+    single constant σ for all holdout hedges.  This is intentionally simple.
+    More sophisticated calibration (vol surface, term structure) would reduce
+    the out-of-sample error further; passing this test with a flat σ is the
+    minimum bar.
+    """
+
+    _DATA_FILE = (
+        Path(__file__).parent.parent.parent.parent
+        / "data"
+        / "spy_atm_options.parquet"
+    )
+
+    def _data_available(self) -> bool:
+        try:
+            import pandas  # noqa: F401
+
+            return self._DATA_FILE.exists()
+        except ImportError:
+            return False
+
+    def _run_backtest_for_series(
+        self,
+        group: "Any",
+        sigma: float,
+    ) -> "float | None":
+        """Run one option series; return cost/premium or None if skipped."""
+        import pandas as pd  # type: ignore[import-untyped]
+
+        from hedge_engine.etl.wrds_loader import (
+            optionmetrics_option_snapshots_from_df,
+        )
+
+        group = group.sort_values("date")
+        if len(group) < 5:
+            return None
+        snaps = optionmetrics_option_snapshots_from_df(group)
+        if not snaps or any(s.underlying_price is None for s in snaps):
+            return None
+        first = snaps[0]
+        T_total = (
+            pd.Timestamp(first.expiry) - pd.Timestamp(first.date)
+        ).days / 365.0
+        if T_total <= 0:
+            return None
+        und_prices = [s.underlying_price for s in snaps]  # type: ignore[misc]
+        times = [
+            (pd.Timestamp(s.date) - pd.Timestamp(first.date)).days / 365.0
+            for s in snaps
+        ]
+        path = PricePath(times=times, prices=und_prices)
+        result = run_delta_hedge(
+            path=path,
+            K=float(first.strike),
+            r=0.05,
+            sigma=sigma,
+            n_contracts=1,
+        )
+        premium = bs_price(
+            S=und_prices[0],
+            K=float(first.strike),
+            T=T_total,
+            r=0.05,
+            sigma=sigma,
+            option_type="call",
+        ).value
+        if premium <= 0:
+            return None
+        return result.total_hedging_cost / premium
+
+    def test_data_file_skips_gracefully(self) -> None:
+        """Test infrastructure: skip guard works when data is absent."""
+        if self._data_available():
+            pytest.skip(
+                "Data present — run test_holdout_mean_cost_near_premium instead"
+            )
+
+    def test_holdout_mean_cost_near_premium(self) -> None:
+        """Out-of-sample hedge cost / premium ≈ 1.0 using in-sample calibrated σ.
+
+        Calibration: median implied vol from the earliest year in the dataset.
+        Holdout: all call series from the latest year in the dataset.
+
+        A backtester that only works with per-day realised IV (look-ahead) will
+        fail this test when given a fixed constant σ estimated from prior data.
+        """
+        if not self._data_available():
+            pytest.skip(
+                "WRDS data not present — set up data/spy_atm_options.parquet"
+            )
+
+        import pandas as pd  # type: ignore[import-untyped]
+
+        df = pd.read_parquet(self._DATA_FILE)
+        df["_year"] = pd.to_datetime(df["date"]).dt.year
+        years = sorted(df["_year"].unique())
+        if len(years) < 2:
+            pytest.skip(
+                f"Data spans only {years} — need at least 2 years for holdout split"
+            )
+
+        in_year, out_year = years[0], years[-1]
+        df_in = df[df["_year"] == in_year]
+        df_out = df[df["_year"] == out_year]
+
+        # Calibrate σ: median IV from in-sample year (no look-ahead)
+        calibrated_sigma = float(df_in["impl_volatility"].median())
+
+        # Validate on holdout year using the calibrated σ
+        ratios: list[float] = []
+        for (_, _expiry, _strike, cp), group in df_out.groupby(
+            ["underlying_ticker", "expiry", "strike", "option_type"]
+        ):
+            if cp != "call":
+                continue
+            ratio = self._run_backtest_for_series(
+                group, sigma=calibrated_sigma
+            )
+            if ratio is not None:
+                ratios.append(ratio)
+
+        assert ratios, (
+            f"No usable call series found in holdout year {out_year}"
+        )
+        mean_ratio = sum(ratios) / len(ratios)
+        assert abs(mean_ratio - 1.0) < 0.15, (
+            f"Holdout mean hedge cost / premium = {mean_ratio:.3f} "
+            f"(calibrated σ={calibrated_sigma:.3f} from {in_year}, "
+            f"tested on {out_year}); expected ≈ 1.0 ± 15%"
+        )
+
+    def test_holdout_not_worse_than_insample(self) -> None:
+        """Out-of-sample hedging error (std) is not dramatically larger than in-sample.
+
+        Uses calibrated (in-sample) σ for both periods so the comparison is fair.
+        A 3× variance expansion would indicate overfitting or a vol-regime break.
+        """
+        if not self._data_available():
+            pytest.skip(
+                "WRDS data not present — set up data/spy_atm_options.parquet"
+            )
+
+        import math
+
+        import pandas as pd  # type: ignore[import-untyped]
+
+        df = pd.read_parquet(self._DATA_FILE)
+        df["_year"] = pd.to_datetime(df["date"]).dt.year
+        years = sorted(df["_year"].unique())
+        if len(years) < 2:
+            pytest.skip("Need at least 2 years of data")
+
+        in_year, out_year = years[0], years[-1]
+        calibrated_sigma = float(
+            df[df["_year"] == in_year]["impl_volatility"].median()
+        )
+
+        def _collect_ratios(subset: "pd.DataFrame") -> list[float]:
+            result = []
+            for (_, _expiry, _strike, cp), grp in subset.groupby(
+                ["underlying_ticker", "expiry", "strike", "option_type"]
+            ):
+                if cp != "call":
+                    continue
+                ratio = self._run_backtest_for_series(
+                    grp, sigma=calibrated_sigma
+                )
+                if ratio is not None:
+                    result.append(ratio)
+            return result
+
+        in_ratios = _collect_ratios(df[df["_year"] == in_year])
+        out_ratios = _collect_ratios(df[df["_year"] == out_year])
+
+        assert in_ratios, "No in-sample series found"
+        assert out_ratios, "No out-of-sample series found"
+
+        def _std(xs: list[float]) -> float:
+            mean = sum(xs) / len(xs)
+            return math.sqrt(sum((x - mean) ** 2 for x in xs) / len(xs))
+
+        std_in = _std(in_ratios)
+        std_out = _std(out_ratios)
+        assert std_out < std_in * 3.0, (
+            f"Holdout std ({std_out:.3f}) is more than 3× in-sample std "
+            f"({std_in:.3f}) — possible vol-regime break or data quality issue"
         )

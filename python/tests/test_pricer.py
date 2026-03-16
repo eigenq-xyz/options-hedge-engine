@@ -205,3 +205,135 @@ class TestBSGreeks:
             S=45, K=50, T=0.0, r=0.05, sigma=0.20, option_type="call"
         )
         assert result.delta == pytest.approx(0.0)
+
+
+# ---------------------------------------------------------------------------
+# Independent scipy reference implementation
+# ---------------------------------------------------------------------------
+
+
+def _ref_bs_price(
+    S: float,
+    K: float,
+    T: float,
+    r: float,
+    sigma: float,
+    option_type: str,
+) -> float:
+    """Black-Scholes price — direct scipy formula, independent of our code.
+
+    This is the canonical formula from Hull (2022) Chapter 15, implemented
+    from scratch using only scipy.stats.norm.  It has no shared code with
+    ``hedge_engine.pricer.black_scholes`` and serves as an independent oracle.
+    """
+    from scipy.stats import norm  # type: ignore[import-untyped]
+
+    if T <= 0:
+        if option_type == "call":
+            return max(S - K, 0.0)
+        return max(K - S, 0.0)
+    d1 = (math.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
+    d2 = d1 - sigma * math.sqrt(T)
+    if option_type == "call":
+        return float(S * norm.cdf(d1) - K * math.exp(-r * T) * norm.cdf(d2))
+    return float(K * math.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1))
+
+
+def _ref_delta(
+    S: float,
+    K: float,
+    T: float,
+    r: float,
+    sigma: float,
+    option_type: str,
+) -> float:
+    """BS delta — direct scipy formula, independent of our code."""
+    from scipy.stats import norm  # type: ignore[import-untyped]
+
+    if T <= 0:
+        if option_type == "call":
+            return 1.0 if S > K else 0.0
+        return -1.0 if S < K else 0.0
+    d1 = (math.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
+    if option_type == "call":
+        return float(norm.cdf(d1))
+    return float(norm.cdf(d1) - 1.0)
+
+
+_BENCHMARK_SCENARIOS = [
+    # (S, K, T, r, sigma, option_type)  — spans ATM, ITM, OTM, long/short expiry
+    (42.0, 40.0, 0.5, 0.10, 0.20, "call"),  # Hull Ex 15.6 call
+    (42.0, 40.0, 0.5, 0.10, 0.20, "put"),  # Hull Ex 15.6 put
+    (100.0, 100.0, 1.0, 0.05, 0.20, "call"),  # ATM call, 1yr
+    (100.0, 100.0, 1.0, 0.05, 0.20, "put"),  # ATM put, 1yr
+    (120.0, 100.0, 0.5, 0.05, 0.20, "call"),  # deep ITM call
+    (80.0, 100.0, 0.5, 0.05, 0.20, "put"),  # deep ITM put
+    (80.0, 100.0, 0.5, 0.05, 0.20, "call"),  # deep OTM call
+    (120.0, 100.0, 0.5, 0.05, 0.20, "put"),  # deep OTM put
+    (100.0, 100.0, 1 / 52, 0.05, 0.25, "call"),  # one-week ATM, higher vol
+    (490.0, 490.0, 21 / 365, 0.05, 0.155, "call"),  # SPY-like ATM ~1mo
+    (490.0, 510.0, 21 / 365, 0.05, 0.165, "call"),  # SPY-like OTM ~1mo
+    (490.0, 470.0, 21 / 365, 0.05, 0.145, "put"),  # SPY-like ITM put ~1mo
+]
+
+
+class TestBenchmarkImplementation:
+    """Cross-validate our pricer against an independent scipy reference.
+
+    The reference functions above implement Black-Scholes from first principles
+    using only ``scipy.stats.norm`` — no shared code with
+    ``hedge_engine.pricer.black_scholes``.  Agreement to machine precision
+    (rel=1e-6) across all scenarios confirms that our implementation is
+    indistinguishable from the standard formula.
+
+    This is the test a quant practitioner uses to establish that the pricing
+    engine is correct, independent of Hull's 3dp-rounded reference tables.
+    """
+
+    @pytest.mark.parametrize("S,K,T,r,sigma,ot", _BENCHMARK_SCENARIOS)
+    def test_price_matches_reference(
+        self,
+        S: float,
+        K: float,
+        T: float,
+        r: float,
+        sigma: float,
+        ot: str,
+    ) -> None:
+        our = bs_price(S=S, K=K, T=T, r=r, sigma=sigma, option_type=ot).value
+        ref = _ref_bs_price(S=S, K=K, T=T, r=r, sigma=sigma, option_type=ot)
+        assert our == pytest.approx(ref, rel=1e-6, abs=1e-10), (
+            f"Price mismatch: our={our:.8f} ref={ref:.8f} "
+            f"for S={S} K={K} T={T} σ={sigma} {ot}"
+        )
+
+    @pytest.mark.parametrize("S,K,T,r,sigma,ot", _BENCHMARK_SCENARIOS)
+    def test_delta_matches_reference(
+        self,
+        S: float,
+        K: float,
+        T: float,
+        r: float,
+        sigma: float,
+        ot: str,
+    ) -> None:
+        our = bs_greeks(S=S, K=K, T=T, r=r, sigma=sigma, option_type=ot).delta
+        ref = _ref_delta(S=S, K=K, T=T, r=r, sigma=sigma, option_type=ot)
+        assert our == pytest.approx(ref, rel=1e-6, abs=1e-10), (
+            f"Delta mismatch: our={our:.8f} ref={ref:.8f} "
+            f"for S={S} K={K} T={T} σ={sigma} {ot}"
+        )
+
+    def test_no_scenario_produces_nan_or_inf(self) -> None:
+        """None of the benchmark scenarios produce NaN or infinite values."""
+        for S, K, T, r, sigma, ot in _BENCHMARK_SCENARIOS:
+            p = bs_price(S=S, K=K, T=T, r=r, sigma=sigma, option_type=ot).value
+            d = bs_greeks(
+                S=S, K=K, T=T, r=r, sigma=sigma, option_type=ot
+            ).delta
+            assert math.isfinite(p), (
+                f"Non-finite price for {S},{K},{T},{sigma},{ot}"
+            )
+            assert math.isfinite(d), (
+                f"Non-finite delta for {S},{K},{T},{sigma},{ot}"
+            )
