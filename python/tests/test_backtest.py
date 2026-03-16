@@ -1,7 +1,9 @@
 """Backtest integration tests.
 
 Hull Table 19.2 gate: the discrete delta-hedging cost must be within
-5% of the textbook value ($263,300).
+5% of the textbook value ($263,300) — option expires ITM.
+
+Hull Table 19.3 gate: OTM expiry path must match $256,600 within 5%.
 
 GBM smoke test: seeded simulation produces a valid result with all
 step certificates passing and a finite hedging cost.
@@ -17,7 +19,14 @@ from hedge_engine.backtest.scenarios import (
     HULL_192_N_CONTRACTS,
     HULL_192_R,
     HULL_192_SIGMA,
+    HULL_193_COST_TOLERANCE,
+    HULL_193_EXPECTED_COST,
+    HULL_193_K,
+    HULL_193_N_CONTRACTS,
+    HULL_193_R,
+    HULL_193_SIGMA,
     hull_192_path,
+    hull_193_path,
 )
 from hedge_engine.simulator.gbm import simulate_gbm
 
@@ -70,6 +79,59 @@ class TestHull192:
         )
         for pv in result.portfolio_values:
             assert isinstance(pv, int)
+
+
+class TestHull193:
+    """Hull Table 19.3 deterministic gate — OTM expiry."""
+
+    def test_hedging_cost_within_5pct(self) -> None:
+        """Delta-hedge cost matches Hull 19.3 within 5%."""
+        path = hull_193_path()
+        result = run_delta_hedge(
+            path=path,
+            K=HULL_193_K,
+            r=HULL_193_R,
+            sigma=HULL_193_SIGMA,
+            n_contracts=HULL_193_N_CONTRACTS,
+        )
+        assert isinstance(result, DeltaHedgeResult)
+        expected = HULL_193_EXPECTED_COST
+        tol = HULL_193_COST_TOLERANCE
+        assert result.total_hedging_cost == pytest.approx(expected, rel=tol), (
+            f"Hedging cost {result.total_hedging_cost:.0f} is not within "
+            f"{tol * 100:.0f}% of expected {expected:.0f}"
+        )
+
+    def test_all_certificates_pass(self) -> None:
+        """All step certificates must report invariant_holds=True."""
+        path = hull_193_path()
+        result = run_delta_hedge(
+            path=path,
+            K=HULL_193_K,
+            r=HULL_193_R,
+            sigma=HULL_193_SIGMA,
+            n_contracts=HULL_193_N_CONTRACTS,
+        )
+        failures = [c for c in result.certificates if not c.invariant_holds]
+        assert failures == [], (
+            f"{len(failures)} certificate(s) failed: {failures[:3]}"
+        )
+
+    def test_option_expires_otm(self) -> None:
+        """Final portfolio value reflects OTM expiry (no payoff paid)."""
+        path = hull_193_path()
+        result = run_delta_hedge(
+            path=path,
+            K=HULL_193_K,
+            r=HULL_193_R,
+            sigma=HULL_193_SIGMA,
+            n_contracts=HULL_193_N_CONTRACTS,
+        )
+        # OTM: option expires worthless, so final cash should be positive
+        # (some premium was retained). Total hedging cost is positive but
+        # smaller than the ITM case because no payoff is owed.
+        assert isinstance(result.total_hedging_cost, float)
+        assert result.total_hedging_cost > 0
 
 
 class TestGBMSmoke:

@@ -1,13 +1,17 @@
 """Hardcoded deterministic price paths for backtest validation.
 
-Hull "Options, Futures, and Other Derivatives" 11th ed., Table 19.2:
-    Written 100,000 European calls
-    S₀=49, K=50, r=5%, σ=20%, T=20 weeks (~0.3846 yr)
-    Expected delta-hedging cost: ~$263,300
+Hull "Options, Futures, and Other Derivatives" 12th ed.:
 
-This is the canonical multi-period validation scenario.  It is
-deterministic and independent of any simulator, so the backtest result
-is reproducible without a random seed.
+Table 19.2 — option closes IN the money (S_T=57.25 > K=50):
+    Written 100,000 European calls; cost of hedging ~$263,300
+
+Table 19.3 — option closes OUT of the money (S_T=48.12 < K=50):
+    Written 100,000 European calls; cost of hedging ~$256,600
+
+Both scenarios: S₀=49, K=50, r=5%, σ=20%, T=20 weeks (~0.3846 yr)
+
+These paths are deterministic and independent of any simulator; the
+backtest results are reproducible without a random seed.
 """
 
 from hedge_engine.backtest.data_types import PricePath
@@ -52,6 +56,44 @@ def hull_192_path() -> PricePath:
     return PricePath(times=times, prices=list(_HULL_192_PRICES))
 
 
+# Hull Table 19.3 week-by-week underlying prices (21 values: week 0..20)
+# Source: Hull "Options, Futures, and Other Derivatives" 12th ed., Table 19.3
+# Option closes out of the money (S_T=48.12 < K=50); cost of hedging = $256,600
+_HULL_193_PRICES: list[float] = [
+    49.00,  # week 0  — initial
+    49.75,  # week 1
+    52.00,  # week 2
+    50.00,  # week 3
+    48.38,  # week 4
+    48.25,  # week 5
+    48.75,  # week 6
+    49.63,  # week 7
+    48.25,  # week 8
+    48.25,  # week 9
+    51.12,  # week 10
+    51.50,  # week 11
+    49.88,  # week 12
+    49.88,  # week 13
+    48.75,  # week 14
+    47.50,  # week 15
+    48.00,  # week 16
+    46.25,  # week 17
+    48.13,  # week 18
+    46.63,  # week 19
+    48.12,  # week 20 — expiry
+]
+
+
+def hull_193_path() -> PricePath:
+    """Return the Hull Table 19.3 price path (OTM expiry).
+
+    Times are in years; 21 entries (week 0 through week 20).
+    """
+    n = len(_HULL_193_PRICES) - 1  # 20 steps
+    times = [i / _WEEKS_PER_YEAR for i in range(n + 1)]
+    return PricePath(times=times, prices=list(_HULL_193_PRICES))
+
+
 # Scenario parameters (used by tests and runner)
 HULL_192_K = 50.0  # strike
 HULL_192_R = 0.05  # risk-free rate (annualised)
@@ -60,3 +102,12 @@ HULL_192_N_CONTRACTS = 100_000  # written call contracts (100 per contract)
 # Expected total hedging cost from Hull Table 19.2 ($)
 HULL_192_EXPECTED_COST = 263_300.0
 HULL_192_COST_TOLERANCE = 0.05  # ±5%
+
+# Table 19.3 shares the same option parameters as 19.2
+HULL_193_K = HULL_192_K
+HULL_193_R = HULL_192_R
+HULL_193_SIGMA = HULL_192_SIGMA
+HULL_193_N_CONTRACTS = HULL_192_N_CONTRACTS
+# Expected total hedging cost from Hull Table 19.3 ($)
+HULL_193_EXPECTED_COST = 256_600.0
+HULL_193_COST_TOLERANCE = 0.05  # ±5%
