@@ -564,7 +564,7 @@ class TestRealDataBacktest:
 
     To activate: download SPY ATM options from OptionMetrics via WRDS
     (see etl/wrds_loader.py for schema), encrypt with git-crypt, and
-    place at data/spy_atm_options.parquet relative to the repo root.
+    place at data/portfolio_atm_options.parquet relative to the repo root.
 
     Validation criterion: under BS assumptions mean hedge error ≈ 0
     (the no-arbitrage condition).  Real data will show small systematic
@@ -575,7 +575,7 @@ class TestRealDataBacktest:
     _DATA_FILE = (
         Path(__file__).parent.parent.parent.parent
         / "data"
-        / "spy_atm_options.parquet"
+        / "portfolio_atm_options.parquet"
     )
 
     def _data_available(self) -> bool:
@@ -603,7 +603,7 @@ class TestRealDataBacktest:
         """
         if not self._data_available():
             pytest.skip(
-                "WRDS data not present — set up data/spy_atm_options.parquet"
+                "WRDS data not present — set up data/portfolio_atm_options.parquet"
             )
 
         import pandas as pd  # type: ignore[import-untyped]
@@ -695,7 +695,7 @@ class TestHoldoutValidation:
     _DATA_FILE = (
         Path(__file__).parent.parent.parent.parent
         / "data"
-        / "spy_atm_options.parquet"
+        / "portfolio_atm_options.parquet"
     )
 
     def _data_available(self) -> bool:
@@ -773,7 +773,7 @@ class TestHoldoutValidation:
         """
         if not self._data_available():
             pytest.skip(
-                "WRDS data not present — set up data/spy_atm_options.parquet"
+                "WRDS data not present — set up data/portfolio_atm_options.parquet"
             )
 
         import pandas as pd  # type: ignore[import-untyped]
@@ -824,7 +824,7 @@ class TestHoldoutValidation:
         """
         if not self._data_available():
             pytest.skip(
-                "WRDS data not present — set up data/spy_atm_options.parquet"
+                "WRDS data not present — set up data/portfolio_atm_options.parquet"
             )
 
         import math
