@@ -4,20 +4,20 @@ import pytest
 
 # Detect whether a functional compiled Cython extension is available.
 # Checking importability alone is not sufficient — a stale .so may exist but
-# lack symbols from the current kernel version.  We require calc_nav to be
+# lack symbols from the current kernel version.  We require portfolio_value to be
 # present as a minimum signal that the extension is up to date.
 try:
     import hedge_engine.ffi.lean_ffi as _lean_ffi_ext
 
-    HAS_LEAN_FFI = hasattr(_lean_ffi_ext, "calc_nav")
+    HAS_LEAN_FFI = hasattr(_lean_ffi_ext, "portfolio_value")
 except ImportError:
     HAS_LEAN_FFI = False
 
 from hedge_engine.ffi import (
     apply_trade,
-    calc_nav,
     get_position,
     initialize_lean,
+    portfolio_value,
     position_value,
     sum_position_values,
 )
@@ -65,21 +65,21 @@ def test_sum_position_values_multiple():
     assert sum_position_values(positions) == 140_000_000
 
 
-# -- calc_nav --
+# -- portfolio_value --
 
 
-def test_calc_nav_empty_portfolio():
-    """NAV of empty portfolio equals cash."""
-    assert calc_nav(cash=1_000_000, positions=[]) == 1_000_000
+def test_portfolio_value_empty_portfolio():
+    """Portfolio value of empty portfolio equals cash."""
+    assert portfolio_value(cash=1_000_000, positions=[]) == 1_000_000
 
 
-def test_calc_nav_with_positions():
-    """NAV = cash + sum of position values."""
+def test_portfolio_value_with_positions():
+    """Portfolio value = cash + sum of position values."""
     positions = [
         {"asset_id": "SPY", "quantity": 100, "mark_price": 500000},
         {"asset_id": "AAPL", "quantity": 50, "mark_price": 1800000},
     ]
-    assert calc_nav(cash=1_000_000, positions=positions) == 141_000_000
+    assert portfolio_value(cash=1_000_000, positions=positions) == 141_000_000
 
 
 # -- get_position --
@@ -113,7 +113,7 @@ def test_get_position_empty():
 # -- apply_trade --
 
 # Test portfolio: $100 (1,000,000 bp) cash, 100 SPY @ $50 (500,000 bp), 50 AAPL @ $180 (1,800,000 bp)
-# NAV = 1,000,000 + 50,000,000 + 90,000,000 = 141,000,000 bp
+# Portfolio value = 1,000,000 + 50,000,000 + 90,000,000 = 141,000,000 bp
 _TEST_POSITIONS = [
     {"asset_id": "SPY", "quantity": 100, "mark_price": 500000},
     {"asset_id": "AAPL", "quantity": 50, "mark_price": 1800000},
@@ -131,7 +131,7 @@ def test_apply_trade_buy_more_existing():
         execution_price=500000,
         fee=100000,
     )
-    assert result["nav"] == 140_900_000  # NAV − fee
+    assert result["portfolio_value"] == 140_900_000  # portfolio value − fee
     assert result["cash"] == -4_100_000  # 1M − (10×500k + 100k)
     spy = next(p for p in result["positions"] if p["asset_id"] == "SPY")
     assert spy["quantity"] == 110
@@ -147,9 +147,11 @@ def test_apply_trade_open_new_position():
         execution_price=2000000,
         fee=0,
     )
-    assert result["nav"] == 141_000_000  # unchanged (zero fee)
+    assert result["portfolio_value"] == 141_000_000  # unchanged (zero fee)
     assert result["cash"] == -39_000_000  # 1M − 20×2M
-    tsla = next((p for p in result["positions"] if p["asset_id"] == "TSLA"), None)
+    tsla = next(
+        (p for p in result["positions"] if p["asset_id"] == "TSLA"), None
+    )
     assert tsla is not None
     assert tsla["quantity"] == 20
 
@@ -164,9 +166,11 @@ def test_apply_trade_close_position():
         execution_price=1800000,
         fee=50000,
     )
-    assert result["nav"] == 140_950_000  # 141M − 50k fee
+    assert result["portfolio_value"] == 140_950_000  # 141M − 50k fee
     assert result["cash"] == 90_950_000  # 1M + 90M − 50k fee
-    aapl = next((p for p in result["positions"] if p["asset_id"] == "AAPL"), None)
+    aapl = next(
+        (p for p in result["positions"] if p["asset_id"] == "AAPL"), None
+    )
     assert aapl is None  # position fully removed
 
 
@@ -184,9 +188,9 @@ def test_apply_trade_cash_debit():
     assert result["cash"] == expected_cash
 
 
-def test_apply_trade_nav_self_financing():
-    """At-market trade: NAV changes only by the fee (self-financing property)."""
-    initial_nav = calc_nav(cash=_TEST_CASH, positions=_TEST_POSITIONS)
+def test_apply_trade_self_financing():
+    """At-market trade: portfolio value changes only by the fee (self-financing property)."""
+    initial_pv = portfolio_value(cash=_TEST_CASH, positions=_TEST_POSITIONS)
     fee = 75_000
     result = apply_trade(
         cash=_TEST_CASH,
@@ -196,15 +200,15 @@ def test_apply_trade_nav_self_financing():
         execution_price=500000,  # at-market price
         fee=fee,
     )
-    assert result["nav"] == initial_nav - fee
+    assert result["portfolio_value"] == initial_pv - fee
 
 
 # -- Lean kernel FFI verification --
 
 
 @pytest.mark.skipif(not HAS_LEAN_FFI, reason="Cython extension not built")
-def test_calc_nav_via_lean_ffi():
-    """Verify that calc_nav is routed through the compiled Lean kernel.
+def test_portfolio_value_via_lean_ffi():
+    """Verify that portfolio_value is routed through the compiled Lean kernel.
 
     When the Cython extension is present, hedge_engine.ffi imports from it
     rather than the pure-Python stubs. This test confirms we are exercising
@@ -212,10 +216,10 @@ def test_calc_nav_via_lean_ffi():
     """
     import hedge_engine.ffi as ffi_mod
 
-    # The calc_nav function should come from the Cython extension, not stubs.
-    assert ffi_mod.calc_nav.__module__ == "hedge_engine.ffi.lean_ffi", (
-        "calc_nav is not from the Cython extension — " "pure-Python stubs may still be active"
+    # The portfolio_value function should come from the Cython extension, not stubs.
+    assert ffi_mod.portfolio_value.__module__ == "hedge_engine.ffi.lean_ffi", (
+        "portfolio_value is not from the Cython extension — pure-Python stubs may still be active"
     )
     # Functional check: same answer as stubs for a simple case.
-    result = calc_nav(cash=1_000_000, positions=[])
+    result = portfolio_value(cash=1_000_000, positions=[])
     assert result == 1_000_000
