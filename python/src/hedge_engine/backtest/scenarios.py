@@ -101,7 +101,7 @@ HULL_192_SIGMA = 0.20  # implied volatility (annualised)
 HULL_192_N_CONTRACTS = 100_000  # written call contracts (100 per contract)
 # Expected total hedging cost from Hull Table 19.2 ($)
 HULL_192_EXPECTED_COST = 263_300.0
-HULL_192_COST_TOLERANCE = 0.05  # ±5%
+HULL_192_COST_TOLERANCE = 0.03  # ±3%
 
 # Table 19.3 shares the same option parameters as 19.2
 HULL_193_K = HULL_192_K
@@ -110,4 +110,4 @@ HULL_193_SIGMA = HULL_192_SIGMA
 HULL_193_N_CONTRACTS = HULL_192_N_CONTRACTS
 # Expected total hedging cost from Hull Table 19.3 ($)
 HULL_193_EXPECTED_COST = 256_600.0
-HULL_193_COST_TOLERANCE = 0.05  # ±5%
+HULL_193_COST_TOLERANCE = 0.03  # ±3%
