@@ -14,7 +14,7 @@ Core data structures for portfolio state representation.
 This module defines:
 - `AssetId`: Asset identifier (string alias)
 - `Position`: Asset holdings with quantities and prices
-- `Portfolio`: Complete portfolio state with type-level NAV invariant
+- `Portfolio`: Complete portfolio state with type-level portfolio value invariant
 - `Trade`: A single trade with type-level price/fee invariants
 - `applyTrade`: Apply a trade to a portfolio (returns a new valid Portfolio)
 
@@ -67,26 +67,27 @@ def Position.value (pos : Position) : Int :=
 def sumPositionValues (positions : Std.HashMap AssetId Position) : Int :=
   positions.fold (fun acc _id pos => acc + pos.value) 0
 
-/-- Portfolio state with type-level NAV invariant.
+/-- Portfolio state with type-level portfolio value invariant.
 
-The `nav_valid` field is a proof that `nav = cash + sumPositionValues positions`,
-making it impossible to construct a Portfolio with an incorrect NAV. -/
+The `value_valid` field is a proof that
+`portfolioValue = cash + sumPositionValues positions`,
+making it impossible to construct a Portfolio with an incorrect portfolio value. -/
 structure Portfolio where
   cash : Int
   positions : Std.HashMap AssetId Position
-  nav : Int
-  nav_valid : nav = cash + sumPositionValues positions
+  portfolioValue : Int
+  value_valid : portfolioValue = cash + sumPositionValues positions
 
 instance : Repr Portfolio where
   reprPrec p _ :=
-    s!"Portfolio(cash := {repr p.cash}, positions := {repr p.positions}, nav := {repr p.nav})"
+    s!"Portfolio(cash := {repr p.cash}, positions := {repr p.positions}, portfolioValue := {repr p.portfolioValue})"
 
-/-- Smart constructor: builds a Portfolio with NAV computed and proved correct. -/
+/-- Smart constructor: builds a Portfolio with portfolio value computed and proved correct. -/
 def Portfolio.mk' (cash : Int) (positions : Std.HashMap AssetId Position) : Portfolio :=
   { cash := cash
     positions := positions
-    nav := cash + sumPositionValues positions
-    nav_valid := rfl }
+    portfolioValue := cash + sumPositionValues positions
+    value_valid := rfl }
 
 /-- Convenience: empty portfolio with given cash -/
 def Portfolio.empty (cash : Int) : Portfolio :=
@@ -145,7 +146,7 @@ def Trade.mk' (assetId : AssetId) (deltaQuantity : Int) (executionPrice : Int) (
       new markPrice = executionPrice.  If the new quantity is zero, the position
       is removed entirely.
     - Cash is debited: new cash = old cash - (deltaQuantity * executionPrice + fee).
-    - NAV is recomputed by `Portfolio.mk'`, so `nav_valid` holds by `rfl`. -/
+    - Portfolio value is recomputed by `Portfolio.mk'`, so `value_valid` holds by `rfl`. -/
 def applyTrade (p : Portfolio) (t : Trade) : Portfolio :=
   let newQty   := p.getQuantity t.assetId + t.deltaQuantity
   let newCash  := p.cash - (t.deltaQuantity * t.executionPrice + t.fee)
