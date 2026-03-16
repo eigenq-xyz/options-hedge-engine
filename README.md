@@ -13,7 +13,9 @@ A formally verified options hedging engine combining Lean 4 theorem proving with
 
 Every portfolio state transition (every trade, every mark-to-market update, every option settlement) carries a machine-checked proof of correctness. The results are not merely tested; they are provably correct, with the proof attached.
 
-The engine runs a discrete delta-hedging simulation for written European calls, routes every accounting step through the Lean kernel, and emits a `StepCertificate` at each rebalancing. A bug in the accounting logic raises `ValueError` immediately rather than silently producing wrong numbers.
+The engine is a **formally verified delta-hedging backtester**: it simulates discrete delta-hedging strategies over historical or synthetic price paths, routes every accounting step through the Lean verified accounting layer, and emits a `StepCertificate` at each rebalancing. A bug in the accounting logic raises `ValueError` immediately rather than silently producing wrong numbers.
+
+> **Current scope**: This release implements the backtester. A real-time hedging execution engine connecting to live market data and order routing is the next planned milestone.
 
 ## Formal Guarantees
 
@@ -167,9 +169,9 @@ print(f"Certificates passed: {all(c.invariant_holds for c in result.certificates
 
 ## Research Context
 
-This project explores formal verification for quantitative finance. The accounting kernel and settlement layer are proven correct in Lean 4 (Mathlib), providing stronger guarantees than unit tests: **the proofs hold for all possible inputs**, not just the ones tested.
+This project explores formal verification for quantitative finance. The verified accounting layer and settlement logic are proven correct in Lean 4 (Mathlib), providing stronger guarantees than unit tests: **the proofs hold for all possible inputs**, not just the ones tested.
 
-The `settlement_value_formula` theorem unifies ITM and OTM option expiry into a single machine-checked statement. The discrete delta-hedging backtest validates that the formally-certified accounting kernel produces numerically correct results when integrated with the Black-Scholes model.
+The `settlement_value_formula` theorem unifies ITM and OTM option expiry into a single machine-checked statement. The discrete delta-hedging backtest validates that the formally-certified accounting logic produces numerically correct results when integrated with the Black-Scholes model.
 
 **Why formal proof rather than testing?**
 
@@ -198,10 +200,10 @@ This workflow scales: as the theorem base grows, the AI has less room to be wron
 
 ### References
 
-- Bertsimas, Kogan & Lo (2000), *JFE* 55(2): discrete hedging variance formula
-- Boyle & Emanuel (1980), *JFE* 8(3): one-step hedging variance
-- Carr & Madan (1998): realized P&L decomposition via dollar gamma
-- Hull, "Options, Futures, and Other Derivatives," 9th Global ed., Chapter 19: delta-hedging tables
+- [Bertsimas, Kogan & Lo (2000)](https://doi.org/10.1016/S0304-405X(99)00048-6), *JFE* 55(2): discrete hedging variance formula
+- [Boyle & Emanuel (1980)](https://doi.org/10.1016/0304-405X(80)90003-3), *JFE* 8(3): one-step hedging variance
+- [Carr & Madan (1998)](https://ssrn.com/abstract=1691942): realized P&L decomposition via dollar gamma
+- Hull, "Options, Futures, and Other Derivatives," 9th Global ed. (2014), Chapter 19: delta-hedging tables
 
 ---
 

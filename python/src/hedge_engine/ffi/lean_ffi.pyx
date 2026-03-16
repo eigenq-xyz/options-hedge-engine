@@ -1,6 +1,6 @@
 # cython: language_level=3
 """
-Cython FFI bindings to Lean 4 accounting kernel.
+Cython FFI bindings to the Lean 4 verified accounting layer.
 
 Exposes @[export hedge_*] functions from OptionHedge.Accounting.
 All monetary values are in basis points (×10,000).

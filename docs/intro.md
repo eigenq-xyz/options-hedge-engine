@@ -8,7 +8,9 @@ Every portfolio state transition (every trade, every mark-to-market update, ever
 
 ## What the engine does
 
-The engine runs a discrete delta-hedging simulation for written European calls. At each weekly rebalancing step:
+The engine is a **formally verified delta-hedging backtester**. It simulates discrete delta-hedging strategies over historical or synthetic price paths. A real-time hedging execution engine is in development.
+
+At each weekly rebalancing step:
 
 1. The option is marked to market at the new Black-Scholes price
 2. The underlying hedge is rebalanced to the current delta
@@ -45,7 +47,7 @@ make test    # Lean proofs + Python tests
 
 ## References
 
-- Hull, *Options, Futures, and Other Derivatives*, 9th Global ed., Tables 19.2, 19.3
-- Bertsimas, Kogan & Lo (2000), *JFE* 55(2): discrete hedging variance
-- Carr & Madan (1998): realized P&L decomposition
-- de Moura & Ullrich (2021): Lean 4 / Mathlib
+- Hull, *Options, Futures, and Other Derivatives*, 9th Global ed. (2014), Tables 19.2, 19.3
+- [Bertsimas, Kogan & Lo (2000)](https://doi.org/10.1016/S0304-405X(99)00048-6), *JFE* 55(2): discrete hedging variance
+- [Carr & Madan (1998)](https://ssrn.com/abstract=1691942): realized P&L decomposition via dollar gamma
+- [de Moura & Ullrich (2021)](https://doi.org/10.1007/978-3-030-79876-5_37): Lean 4 theorem prover and programming language
