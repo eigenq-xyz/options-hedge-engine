@@ -9,6 +9,7 @@
 -/
 
 import OptionHedge.Basic
+import OptionHedge.Options
 
 namespace OptionHedge
 
@@ -22,10 +23,10 @@ def positionValueFFI (pos : Position) : Int :=
 def sumPositionValuesFFI (p : Portfolio) : Int :=
   sumPositionValues p.positions
 
-/-- FFI: Get the NAV of a portfolio (O(1) field access) -/
-@[export hedge_portfolio_nav]
-def calcNavFFI (p : Portfolio) : Int :=
-  p.nav
+/-- FFI: Get the portfolio value (O(1) field access) -/
+@[export hedge_portfolio_value]
+def portfolioValueFFI (p : Portfolio) : Int :=
+  p.portfolioValue
 
 /-- FFI: Construct a portfolio from cash and positions (takes List, converts to HashMap) -/
 @[export hedge_mk_portfolio]
@@ -46,5 +47,17 @@ def applyTradeFFI (p : Portfolio) (t : Trade) : Portfolio :=
 @[export hedge_portfolio_positions_to_list]
 def portfolioPositionsToListFFI (p : Portfolio) : List Position :=
   p.positionsToList
+
+/-- FFI: Compute option payoff given spot price -/
+@[export hedge_option_payoff]
+def optionPayoffFFI (opt : EuropeanOption) (spot : Int) : Int :=
+  optionPayoff opt spot
+
+/-- FFI: Settle an option position; returns portfolio unchanged if position absent -/
+@[export hedge_settle_option]
+def settleOptionFFI (p : Portfolio) (opt : EuropeanOption) (spot : Int) : Portfolio :=
+  match p.getPosition opt.assetId with
+  | none     => p   -- no position to settle
+  | some pos => applySettlement p opt (opt.settle spot pos.quantity)
 
 end OptionHedge

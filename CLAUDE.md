@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Formally verified options portfolio backtesting and hedging engine. Lean 4 implements the accounting kernel (NAV calculation, trades, proofs). Python handles data engineering, orchestration, and visualization. They communicate via Cython FFI. Currently at v0.2 milestone (NAV calculation + FFI setup).
+Formally verified options portfolio backtesting and hedging engine. Lean 4 implements the accounting kernel (portfolio value calculation, trades, proofs). Python handles data engineering, orchestration, and visualization. They communicate via Cython FFI. Currently at v0.3.2 milestone (accounting kernel + trade invariants).
 
 ## Build & Test Commands
 
@@ -34,7 +34,8 @@ Formally verified options portfolio backtesting and hedging engine. Lean 4 imple
 lean/           — Lean 4 accounting kernel (Lake build system, Mathlib dependency)
 python/         — Python package managed by uv (src/hedge_engine/)
 integration/    — Cross-language integration tests
-book/           — JupyterBook documentation
+docs/           — JupyterBook documentation site (builds to GitHub Pages)
+notebooks/      — standalone executable notebooks (demo)
 data/           — Encrypted market data (git-crypt)
 ```
 
@@ -45,14 +46,14 @@ data/           — Encrypted market data (git-crypt)
 - **JSON certificates** carry data from Python to Lean's verifier with string-encoded decimals for precision.
 
 ### Lean types and functions (lean/OptionHedge/)
-- `Basic.lean` — core types: `AssetId` (String alias), `Position`, `Portfolio` (carries `nav_valid` proof that NAV = cash + positions). Smart constructor `Portfolio.mk'` discharges proof via `rfl`.
-- `Accounting.lean` — FFI exports only (`@[export hedge_*]`): `hedge_portfolio_nav` (O(1) field read), `hedge_mk_portfolio`, `hedge_position_value`, `hedge_sum_position_values`, `hedge_get_position`
-- `Invariants.lean` — formal theorems: `navIdentity`, `mk'_nav`, `empty_nav`, `position_value_def`, `pricesPositive` (axiom)
+- `Basic.lean` — core types: `AssetId` (String alias), `Position`, `Portfolio` (carries `value_valid` proof that `portfolioValue = cash + sumPositionValues positions`). Smart constructor `Portfolio.mk'` discharges proof via `rfl`.
+- `Accounting.lean` — FFI exports only (`@[export hedge_*]`): `hedge_portfolio_value` (O(1) field read), `hedge_mk_portfolio`, `hedge_position_value`, `hedge_sum_position_values`, `hedge_get_position`, `hedge_apply_trade`
+- `Invariants.lean` — formal theorems: `valueIdentity`, `mk'_value`, `empty_value`, `valueUpdateFormula`, `selfFinancing`, `quantityConservation`, `cashUpdateCorrect`, `applyTrade_wellFormed`
 - `Tests/UnitTests.lean` — concrete computation tests via `native_decide`
 
 ### Python package (python/src/hedge_engine/)
 - `ffi/lean_ffi.pyx` — Cython FFI declarations against Lean C headers (`hedge_*` symbols)
-- `ffi/__init__.py` — Python stubs (used until Cython extension is built): `calc_nav`, `position_value`, `sum_position_values`, `get_position`, `initialize_lean`
+- `ffi/__init__.py` — Python stubs (used until Cython extension is built): `portfolio_value`, `position_value`, `sum_position_values`, `get_position`, `apply_trade`, `initialize_lean`
 
 ## Key Conventions
 

@@ -36,9 +36,9 @@ repos:
         additional_dependencies: []
         files: ^python/src/
 
-  # Markdown linting
+  # Markdown linting (v0.37.0 supports Node 18.x)
   - repo: https://github.com/igorshubovych/markdownlint-cli
-    rev: v0.47.0
+    rev: v0.37.0
     hooks:
       - id: markdownlint
         args: [--fix, --disable, MD013, MD033, MD041]  # Disable line length, HTML, first line heading

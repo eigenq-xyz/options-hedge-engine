@@ -17,7 +17,3 @@ lean_lib OptionHedge where
   globs := #[.submodules `OptionHedge]
   -- Lean generates C files automatically in .lake/build/ir/
   -- These will be compiled to .o files by Lake
-
-lean_exe verify_certs where
-  root := `OptionHedge.Certificate.VerifierMain
-  supportInterpreter := true

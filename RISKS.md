@@ -302,7 +302,7 @@
 
 ## R11: Makefile Portability (Windows)
 
-**Risk**: Makefile doesn't work on Windows without WSL/Cygwin.
+**Risk**: The Makefile does not function on Windows without WSL/Cygwin.
 
 **Severity**: 🟡 Medium (accessibility)
 

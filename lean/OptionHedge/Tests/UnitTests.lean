@@ -6,11 +6,12 @@ Authors: Akhil Karra
 
 import OptionHedge.Basic
 import OptionHedge.Accounting
+import OptionHedge.Options
 
 /-!
 # Unit Tests
 
-Concrete tests for portfolio types, NAV calculation, position lookup, and trade application.
+Concrete tests for portfolio types, portfolio value calculation, position lookup, and trade application.
 -/
 
 namespace OptionHedge.Tests
@@ -18,7 +19,7 @@ namespace OptionHedge.Tests
 /-! ## Empty portfolio -/
 
 example : (Portfolio.empty 1000000).cash = 1000000 := rfl
-example : (Portfolio.empty 1000000).nav = 1000000 := by native_decide
+example : (Portfolio.empty 1000000).portfolioValue = 1000000 := by native_decide
 example : (Portfolio.empty 1000000).positions = {} := rfl
 
 /-! ## Position value -/
@@ -42,7 +43,7 @@ private def testPositions : Std.HashMap AssetId Position :=
 example : sumPositionValues testPositions = 140000000 := by native_decide
 
 -- NAV = cash + positions = 1,000,000 + 140,000,000 = 141,000,000 bp
-example : (Portfolio.mk' 1000000 testPositions).nav = 141000000 := by native_decide
+example : (Portfolio.mk' 1000000 testPositions).portfolioValue = 141000000 := by native_decide
 
 /-! ## Position lookup -/
 
@@ -61,7 +62,7 @@ example : ((Portfolio.mk' 0 testPositions).getPosition "TSLA").isNone = true := 
 private def testPortfolio : Portfolio :=
   Portfolio.mk' 1000000 testPositions
 
-example : testPortfolio.nav = 141000000 := by native_decide
+example : testPortfolio.portfolioValue = 141000000 := by native_decide
 
 /-! ### Buy more SPY (existing position, at-market price) -/
 
@@ -75,7 +76,7 @@ example : (applyTrade testPortfolio tradeBuySPY).getQuantity "SPY" = 110 := by n
 example : (applyTrade testPortfolio tradeBuySPY).cash = -4100000 := by native_decide
 
 -- NAV decreases only by the fee (at-market trade)
-example : (applyTrade testPortfolio tradeBuySPY).nav = 140900000 := by native_decide
+example : (applyTrade testPortfolio tradeBuySPY).portfolioValue = 140900000 := by native_decide
 
 /-! ### Open new position (buy TSLA, zero fee) -/
 
@@ -89,7 +90,7 @@ example : (applyTrade testPortfolio tradeOpenTSLA).getQuantity "TSLA" = 20 := by
 example : (applyTrade testPortfolio tradeOpenTSLA).cash = -39000000 := by native_decide
 
 -- NAV unchanged (zero fee, at-market price)
-example : (applyTrade testPortfolio tradeOpenTSLA).nav = testPortfolio.nav := by native_decide
+example : (applyTrade testPortfolio tradeOpenTSLA).portfolioValue = testPortfolio.portfolioValue := by native_decide
 
 /-! ### Close position (sell all AAPL, at-market price) -/
 
@@ -104,7 +105,57 @@ example : (applyTrade testPortfolio tradeCloseAAPL).getQuantity "AAPL" = 0 := by
 example : (applyTrade testPortfolio tradeCloseAAPL).cash = 90950000 := by native_decide
 
 -- NAV decreases only by the fee
-example : (applyTrade testPortfolio tradeCloseAAPL).nav =
-    testPortfolio.nav - 50000 := by native_decide
+example : (applyTrade testPortfolio tradeCloseAAPL).portfolioValue =
+    testPortfolio.portfolioValue - 50000 := by native_decide
+
+/-! ## Option payoffs -/
+
+-- Call ITM: spot=$55, strike=$50 → payoff = $5.00 (500,000 bp)
+example : callPayoff 550000 500000 = 50000 := by native_decide
+
+-- Call OTM: spot=$45, strike=$50 → payoff = $0
+example : callPayoff 450000 500000 = 0 := by native_decide
+
+-- Call ATM: spot=$50, strike=$50 → payoff = $0
+example : callPayoff 500000 500000 = 0 := by native_decide
+
+-- Put ITM: spot=$45, strike=$50 → payoff = $5.00 (500,000 bp)
+example : putPayoff 450000 500000 = 50000 := by native_decide
+
+-- Put OTM: spot=$55, strike=$50 → payoff = $0
+example : putPayoff 550000 500000 = 0 := by native_decide
+
+-- Put-call parity: call - put = spot - strike (integer identity)
+example : callPayoff 550000 500000 - putPayoff 550000 500000 = 550000 - 500000 := by native_decide
+example : callPayoff 450000 500000 - putPayoff 450000 500000 = 450000 - 500000 := by native_decide
+
+/-! ## Settlement -/
+
+private def testCall : EuropeanOption := EuropeanOption.mk' "SPY-CALL" .Call 500000
+
+-- 100-contract long call; all values in basis points
+private def callPortfolio : Portfolio :=
+  Portfolio.mk' 10000000
+    (positionsOfList [Position.mk' "SPY-CALL" 100 300000])
+
+-- ITM: spot=$55 (550,000 bp) > strike=$50 (500,000 bp); payoff = 50,000 bp
+-- applySettlement closes position: qty → 0, cash += 100 × 50,000 = 5,000,000
+example : (applySettlement callPortfolio testCall
+    (testCall.settle 550000 100)).getQuantity "SPY-CALL" = 0 := by native_decide
+
+example : (applySettlement callPortfolio testCall
+    (testCall.settle 550000 100)).cash = 10000000 + 100 * 50000 := by native_decide
+
+-- OTM: spot=$45 (450,000 bp) < strike=$50 (500,000 bp); payoff = 0
+-- abandonPosition: cash unchanged, position erased
+example : (applySettlement callPortfolio testCall
+    (testCall.settle 450000 100)).getPosition "SPY-CALL" = none := by native_decide
+
+example : (applySettlement callPortfolio testCall
+    (testCall.settle 450000 100)).cash = 10000000 := by native_decide
+
+-- ATM: spot=$50 (500,000 bp) = strike; follows OTM path
+example : (applySettlement callPortfolio testCall
+    (testCall.settle 500000 100)).getPosition "SPY-CALL" = none := by native_decide
 
 end OptionHedge.Tests

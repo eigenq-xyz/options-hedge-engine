@@ -1,77 +1,62 @@
 """FFI module for calling Lean 4 accounting kernel from Python.
 
 Exports match the Lean @[export hedge_*] functions in Accounting.lean.
-Until the Cython extension is built, Python stubs replicate the logic.
+
+All functions call directly into the Lean kernel compiled to C via the
+Cython extension (lean_ffi.so).  Build it with:
+
+    cd python && python setup.py build_ext --inplace
+
+Lean's runtime depends on libleanrt and libuv.  On Linux, libleanrt.so is
+linked dynamically (libleanrt.a is not PIC-safe for shared objects).  Both
+libraries are pre-loaded with RTLD_GLOBAL so their symbols are available
+when the Cython extension is dlopen'd.
 """
+
+import ctypes
+import ctypes.util
 
 __all__ = [
     "initialize_lean",
-    "calc_nav",
+    "portfolio_value",
     "position_value",
     "sum_position_values",
     "get_position",
     "apply_trade",
+    "settle_option",
 ]
 
-try:
-    from .lean_ffi import (  # type: ignore[import-untyped]
-        apply_trade,
-        calc_nav,
-        get_position,
-        initialize_lean,
-        position_value,
-        sum_position_values,
-    )
-except ImportError:
-    # Cython extension not built yet — provide pure-Python stubs.
-    # All monetary values are in basis points (×10,000).
+# Pre-load libleanrt and libuv into the global namespace before importing the
+# Cython extension.  The extension records NEEDED entries for both, but
+# pre-loading with RTLD_GLOBAL guarantees symbol visibility on all platforms.
+_preload_candidates: list[list[str | None]] = [
+    [ctypes.util.find_library("leanrt")],  # libleanrt.so (Linux only)
+    [
+        ctypes.util.find_library("uv"),
+        "/opt/homebrew/lib/libuv.dylib",  # Homebrew arm64
+        "/usr/local/lib/libuv.dylib",  # Homebrew x86 / manual
+        "/usr/lib/libuv.so.1",  # Debian/Ubuntu
+        "/usr/lib/x86_64-linux-gnu/libuv.so.1",  # Ubuntu multiarch
+    ],
+]
+for _candidates in _preload_candidates:
+    for _path in _candidates:
+        if _path is None:
+            continue
+        try:
+            ctypes.CDLL(_path, mode=ctypes.RTLD_GLOBAL)
+            break
+        except OSError:
+            continue
 
-    def initialize_lean() -> None:
-        """Stub: Lean runtime initialization (no-op)."""
+from .lean_ffi import (  # type: ignore[import-untyped]  # noqa: E402
+    apply_trade,
+    get_position,
+    initialize_lean,
+    portfolio_value,
+    position_value,
+    settle_option,
+    sum_position_values,
+)
 
-    def position_value(quantity: int, mark_price: int) -> int:
-        """Stub for hedge_position_value: quantity × markPrice."""
-        return quantity * mark_price
-
-    def sum_position_values(positions: list[dict[str, int]]) -> int:
-        """Stub for hedge_sum_position_values: sum of position values."""
-        return sum(p["quantity"] * p["mark_price"] for p in positions)
-
-    def calc_nav(cash: int, positions: list[dict[str, int]]) -> int:
-        """Stub for hedge_portfolio_nav: cash + sum of position values."""
-        return int(cash + sum_position_values(positions))
-
-    def get_position(
-        positions: list[dict[str, int | str]], asset_id: str
-    ) -> dict[str, int | str] | None:
-        """Stub for hedge_get_position: lookup by asset ID."""
-        for p in positions:
-            if p["asset_id"] == asset_id:
-                return p
-        return None
-
-    def apply_trade(
-        cash: int,
-        positions: list[dict[str, int | str]],
-        asset_id: str,
-        delta_quantity: int,
-        execution_price: int,
-        fee: int,
-    ) -> dict[str, int | list[dict[str, int | str]]]:
-        """Stub for hedge_apply_trade: apply a trade to a portfolio.
-
-        Returns {"cash": int, "positions": list[dict], "nav": int}.
-        Mirrors applyTrade semantics from Basic.lean exactly.
-        """
-        old_qty = next((int(p["quantity"]) for p in positions if p["asset_id"] == asset_id), 0)
-        new_qty = old_qty + delta_quantity
-        new_cash = cash - (delta_quantity * execution_price + fee)
-        stripped = [p for p in positions if p["asset_id"] != asset_id]
-        if new_qty == 0:
-            new_positions: list[dict[str, int | str]] = list(stripped)
-        else:
-            new_positions = stripped + [
-                {"asset_id": asset_id, "quantity": new_qty, "mark_price": execution_price}
-            ]
-        nav = new_cash + sum(int(p["quantity"]) * int(p["mark_price"]) for p in new_positions)
-        return {"cash": new_cash, "positions": new_positions, "nav": nav}
+initialize_lean()

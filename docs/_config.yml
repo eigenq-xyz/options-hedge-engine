@@ -1,0 +1,27 @@
+title: Options Hedge Engine
+author: Akhil Karra
+
+execute:
+  execute_notebooks: cache
+  timeout: 120
+
+latex:
+  latex_documents:
+    targetname: book.tex
+
+bibtex_bibfiles:
+  - references.bib
+
+repository:
+  url: https://github.com/eigenq-xyz/options-hedge-engine
+  path_to_book: docs
+  branch: main
+
+html:
+  use_issues_button: true
+  use_repository_button: true
+  extra_navbar: "Educational use only — not for production trading"
+
+sphinx:
+  config:
+    myst_heading_anchors: 4

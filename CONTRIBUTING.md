@@ -425,10 +425,10 @@ make ci-local
 ## Code of Conduct
 
 - Be respectful and constructive
-- This is a research project—questions and discussions welcome
+- This is a research project; questions and discussions are welcome
 - Document your reasoning (especially for design decisions)
 - Prioritize correctness over cleverness
 
 ---
 
-**Happy hacking! 🚀**
+Contributions of all kinds are welcome.

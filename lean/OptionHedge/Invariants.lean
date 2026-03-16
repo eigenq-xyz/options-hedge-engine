@@ -4,9 +4,9 @@
   Theorem statements for all portfolio accounting invariants.
   Proofs are implemented alongside each milestone (not deferred).
 
-  With NAV as a stored field carrying a type-level proof (`nav_valid`),
-  the NAV identity is enforced by construction. Any function that returns
-  a Portfolio must produce a valid proof, guaranteeing NAV correctness.
+  With portfolio value as a stored field carrying a type-level proof (`value_valid`),
+  the portfolio value identity is enforced by construction. Any function that returns
+  a Portfolio must produce a valid proof, guaranteeing portfolio value correctness.
 -/
 
 import OptionHedge.Basic
@@ -15,23 +15,30 @@ import Mathlib.Tactic
 
 namespace OptionHedge
 
-/-! ## NAV Identity -/
+/-! ## Portfolio Value Identity -/
 
-/-- NAV equals cash plus sum of position values.
-With NAV as a stored field, this is just the proof field itself. -/
-theorem navIdentity (p : Portfolio) :
-    p.nav = p.cash + sumPositionValues p.positions :=
-  p.nav_valid
+/-- Portfolio value equals cash plus sum of position values.
 
-/-- The smart constructor computes NAV correctly -/
-theorem mk'_nav (cash : Int) (positions : Std.HashMap AssetId Position) :
-    (Portfolio.mk' cash positions).nav = cash + sumPositionValues positions :=
+    Economic meaning: the portfolio's stated value is always consistent
+    with its components — cash plus mark-to-market positions.  No hidden
+    value can accumulate.  This holds for *every* `Portfolio` value, not
+    just the ones tested; the proof covers all possible inputs.
+
+    With portfolio value as a stored field, this is just the proof field
+    itself. -/
+theorem valueIdentity (p : Portfolio) :
+    p.portfolioValue = p.cash + sumPositionValues p.positions :=
+  p.value_valid
+
+/-- The smart constructor computes portfolio value correctly -/
+theorem mk'_value (cash : Int) (positions : Std.HashMap AssetId Position) :
+    (Portfolio.mk' cash positions).portfolioValue = cash + sumPositionValues positions :=
   rfl
 
-/-- An empty portfolio's NAV equals its cash -/
-theorem empty_nav (cash : Int) :
-    (Portfolio.empty cash).nav = cash := by
-  have h1 : (Portfolio.empty cash).nav =
+/-- An empty portfolio's value equals its cash -/
+theorem empty_value (cash : Int) :
+    (Portfolio.empty cash).portfolioValue = cash := by
+  have h1 : (Portfolio.empty cash).portfolioValue =
       cash + sumPositionValues (∅ : Std.HashMap AssetId Position) := rfl
   have h2 : sumPositionValues (∅ : Std.HashMap AssetId Position) = 0 := by
     simp [sumPositionValues, Std.HashMap.fold_eq_foldl_toList]
@@ -45,16 +52,31 @@ theorem position_value_def (pos : Position) :
 /-! ## Domain Constraints -/
 
 /-- Mark prices must be positive.
-Proved directly from the `markPrice_pos` field on Position — no axiom needed. -/
+
+    Economic meaning: no position can carry a zero or negative price —
+    a defensive constraint that prevents division-by-zero and degenerate
+    portfolios.  Enforced structurally: every `Position` must supply a
+    `markPrice_pos : markPrice > 0` proof at construction time.
+
+    Proved directly from the `markPrice_pos` field on Position — no axiom
+    needed. -/
 theorem pricesPositive (pos : Position) : pos.markPrice > 0 :=
   pos.markPrice_pos
 
-/-! ## Trade Invariants (v0.3) -/
+/-! ## Trade Invariants -/
 
-/-- Fees are always non-negative (enforced by the `fee_nonneg` proof field on Trade). -/
+/-- Fees are always non-negative (enforced by the `fee_nonneg` proof field on Trade).
+
+    Economic meaning: the engine cannot award rebates — transaction costs
+    can only reduce portfolio value, never increase it.  A negative fee
+    would be a hidden source of wealth; this theorem rules it out. -/
 theorem feeNonNegative (t : Trade) : t.fee ≥ 0 := t.fee_nonneg
 
-/-- Applying a trade debits cash by `deltaQuantity * executionPrice + fee`. -/
+/-- Applying a trade debits cash by `deltaQuantity * executionPrice + fee`.
+
+    Economic meaning: every dollar spent purchasing shares (or received
+    from selling) flows through the cash balance.  There is no hidden
+    source of funds.  Proved by `rfl` — the definition is the theorem. -/
 theorem cashUpdateCorrect (p : Portfolio) (t : Trade) :
     (applyTrade p t).cash = p.cash - (t.deltaQuantity * t.executionPrice + t.fee) := rfl
 
@@ -143,7 +165,12 @@ private theorem sumPositionValues_erase_of_not_mem
 
 /-! ### Quantity Conservation -/
 
-/-- Applying a trade updates the position quantity correctly. -/
+/-- Applying a trade updates the position quantity correctly.
+
+    Economic meaning: shares cannot appear from thin air or silently
+    disappear after a trade.  The post-trade quantity equals the
+    pre-trade quantity plus `deltaQuantity`, for every possible prior
+    state and every possible trade size. -/
 theorem quantityConservation (p : Portfolio) (t : Trade) :
     (applyTrade p t).getQuantity t.assetId =
     p.getQuantity t.assetId + t.deltaQuantity := by
@@ -169,16 +196,22 @@ theorem quantityConservation (p : Portfolio) (t : Trade) :
     simp only [Portfolio.getQuantity, Portfolio.getPosition, hPos,
                Std.HashMap.getElem?_insert_self]
 
-/-! ### General NAV Update Formula -/
+/-! ### Portfolio Value Update Formula -/
 
-/-- General NAV update: trade changes NAV by the mark-to-market P&L on the existing
-    position quantity, minus the fee. For new positions (getQuantity = 0), this reduces
-    to NAV change = -fee. -/
-theorem navUpdateFormula (p : Portfolio) (t : Trade) :
-    (applyTrade p t).nav =
-    p.nav + p.getQuantity t.assetId * (t.executionPrice - p.getMarkPrice_orZero t.assetId)
+/-- Portfolio value update formula: ΔPV = pre-trade qty × (exec price − mark) − fee.
+
+    Economic meaning: when you trade an asset, the change in portfolio value equals
+    the mark-to-market gain on your *existing* position (quantity × price improvement)
+    minus the fee. A brand-new position (qty = 0 before) contributes zero MTM gain.
+    There is no "leakage" from rounding, ordering, or representation error.
+
+    Formal proof is stronger than a unit test: it holds for *every* portfolio state
+    and *every* trade, not just the tested examples. -/
+theorem valueUpdateFormula (p : Portfolio) (t : Trade) :
+    (applyTrade p t).portfolioValue =
+    p.portfolioValue + p.getQuantity t.assetId * (t.executionPrice - p.getMarkPrice_orZero t.assetId)
           - t.fee := by
-  rw [navIdentity (applyTrade p t), navIdentity p, cashUpdateCorrect]
+  rw [valueIdentity (applyTrade p t), valueIdentity p, cashUpdateCorrect]
   suffices h : sumPositionValues (applyTrade p t).positions =
       sumPositionValues p.positions +
       p.getQuantity t.assetId * (t.executionPrice - p.getMarkPrice_orZero t.assetId) +
@@ -238,12 +271,16 @@ theorem navUpdateFormula (p : Portfolio) (t : Trade) :
 
 /-! ### Self-Financing -/
 
-/-- When a trade executes at the existing mark price, NAV changes only by the fee. -/
+/-- Self-financing property: when a trade executes at the existing mark price,
+    portfolio value changes only by the fee.
+
+    Economic meaning: buying or selling at today's mark price is a "fair" trade —
+    no value is created or destroyed, only the transaction fee is paid. -/
 theorem selfFinancing (p : Portfolio) (t : Trade) (pos : Position)
     (hPos  : p.getPosition t.assetId = some pos)
     (hPrice : t.executionPrice = pos.markPrice) :
-    (applyTrade p t).nav = p.nav - t.fee := by
-  rw [navUpdateFormula]
+    (applyTrade p t).portfolioValue = p.portfolioValue - t.fee := by
+  rw [valueUpdateFormula]
   have hMark : p.getMarkPrice_orZero t.assetId = pos.markPrice := by
     simp [Portfolio.getMarkPrice_orZero, hPos]
   rw [hMark, hPrice]

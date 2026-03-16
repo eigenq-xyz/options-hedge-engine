@@ -15,6 +15,7 @@ dependencies = [
     "scipy>=1.11.0",
     "cvxpy>=1.4.0",
     "pydantic>=2.5.0",
+    "pyarrow>=23.0.1",
 ]
 
 [project.optional-dependencies]
@@ -26,7 +27,7 @@ dev = [
     "ipython>=8.18.0",
 ]
 docs = [
-    "jupyter-book>=0.15.0",
+    "jupyter-book>=0.15.0,<2.0.0",
     "matplotlib>=3.8.0",
     "seaborn>=0.13.0",
 ]
@@ -39,7 +40,7 @@ requires = ["hatchling", "cython>=3.0.0"]
 build-backend = "hatchling.build"
 
 [tool.ruff]
-line-length = 100
+line-length = 79
 target-version = "py312"
 
 [tool.ruff.lint]
@@ -71,12 +72,21 @@ check_untyped_defs = true
 no_implicit_optional = true
 
 [[tool.mypy.overrides]]
+module = "numpy.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
 module = "cvxpy.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "scipy.*"
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "pandas"
+ignore_missing_imports = true
+ignore_errors = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,0 +1,65 @@
+name: Publish JupyterBook Docs
+
+on:
+  # Build and deploy on every push to main
+  push:
+    branches:
+      - main
+  # Allow manual triggering from the Actions tab
+  workflow_dispatch:
+
+# Allow the workflow to write to GitHub Pages
+permissions:
+  pages: write
+  id-token: write
+
+# Only one deployment at a time
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-book:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install Python dependencies (including jupyter-book)
+        working-directory: python
+        run: uv sync --extra dev --extra docs
+
+      # Cache executed notebooks so re-runs are fast
+      - name: Cache executed notebooks
+        uses: actions/cache@v4
+        with:
+          path: docs/_build/.jupyter_cache
+          key: jupyter-book-cache-${{ hashFiles('python/pyproject.toml') }}-${{ hashFiles('notebooks/**') }}
+
+      - name: Build the JupyterBook
+        working-directory: python
+        run: |
+          uv run jupyter-book build ../docs/ --path-output ../docs/_build
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/_build/html
+
+  deploy:
+    needs: build-book
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
