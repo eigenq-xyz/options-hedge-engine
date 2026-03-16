@@ -18,6 +18,11 @@ parts:
     chapters:
       - file: architecture/overview
         title: "System Architecture"
+  - caption: "Data"
+    numbered: true
+    chapters:
+      - file: wrds_data_download
+        title: "WRDS Data Download"
   - caption: "Research"
     numbered: true
     chapters:

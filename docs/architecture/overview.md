@@ -99,7 +99,7 @@ the kernel.
 
 ## Key Design Decisions
 
-See [DECISIONS.md](../../DECISIONS.md) for full ADR documentation:
+See [DECISIONS.md](https://github.com/eigenq-xyz/options-hedge-engine/blob/main/DECISIONS.md) for full ADR documentation:
 
 - **ADR-000**: Lean for accounting, Python for ETL, data-source agnostic kernel
 - **ADR-001**: Scaled integer arithmetic (basis points) instead of floats or rationals
