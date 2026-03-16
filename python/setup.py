@@ -53,7 +53,7 @@ LEAN_IR = LEAN_PROJECT / ".lake" / "build" / "ir" / "OptionHedge"
 # Only the four modules that contain FFI-callable runtime code.
 # Invariants.c and OptionInvariants.c depend on Mathlib (for proof tactics)
 # and contain no runtime-callable symbols — exclude them.
-FFI_MODULES = ["Accounting", "Basic", "Options", "Numeric"]
+FFI_MODULES = ["Accounting", "Basic", "Options"]
 
 if not LEAN_IR.exists():
     print("Lean IR not found; running `lake build` first …")
