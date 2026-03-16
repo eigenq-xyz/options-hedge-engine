@@ -1,4 +1,4 @@
-"""Test FFI bindings to Lean accounting kernel."""
+"""Test FFI bindings to the Lean 4 verified accounting layer."""
 
 import pytest
 

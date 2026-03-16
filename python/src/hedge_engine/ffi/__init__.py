@@ -1,4 +1,4 @@
-"""FFI module for calling Lean 4 accounting kernel from Python.
+"""FFI module for calling the Lean 4 verified accounting layer from Python.
 
 Exports match the Lean @[export hedge_*] functions in Accounting.lean.
 

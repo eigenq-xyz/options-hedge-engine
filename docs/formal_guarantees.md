@@ -1,6 +1,6 @@
 # Formal Guarantees
 
-The Lean 4 accounting kernel carries machine-checked proofs for all possible inputs.
+The Lean 4 verified accounting layer carries machine-checked proofs for all possible inputs.
 These are not tests; the proofs are verified by Lean's type checker at compile time.
 
 ## Impossible States (by construction)
